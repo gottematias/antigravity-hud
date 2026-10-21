@@ -1,0 +1,28 @@
+{
+  "name": "antigravity-hud",
+  "version": "1.0.0",
+  "description": "Structured 2-line Antigravity CLI statusline HUD for subscription accounts with dual quota telemetry",
+  "main": "bin/hud.js",
+  "bin": {
+    "antigravity-hud": "bin/hud.js"
+  },
+  "scripts": {
+    "start": "node bin/hud.js",
+    "test": "node tests/test.js",
+    "install:hud": "node scripts/install.js",
+    "uninstall:hud": "node scripts/install.js --uninstall"
+  },
+  "keywords": [
+    "antigravity",
+    "antigravity-cli",
+    "statusline",
+    "hud",
+    "gemini",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
