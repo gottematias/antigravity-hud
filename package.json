@@ -20,7 +20,15 @@
     "gemini",
     "cli"
   ],
-  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gottematias/antigravity-hud.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gottematias/antigravity-hud/issues"
+  },
+  "homepage": "https://github.com/gottematias/antigravity-hud#readme",
+  "author": "gottematias",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"

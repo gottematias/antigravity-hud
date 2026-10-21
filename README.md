@@ -128,6 +128,6 @@ git init
 git add .
 git commit -m "feat(hud): initial commit of cross-platform antigravity statusline hud"
 git branch -M main
-git remote add origin https://github.com/<your-username>/antigravity-hud.git
+git remote add origin https://github.com/gottematias/antigravity-hud.git
 git push -u origin main
 ```
