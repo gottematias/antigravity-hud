@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `scripts/release-check.js` (`npm run release:check -- vX.Y.Z`): verifies that a release tag matches `package.json`, `plugin.json` and a `CHANGELOG.md` section.
+
+### Changed
+- Release notes are now taken from the tagged `CHANGELOG.md` section instead of auto-generated PR titles.
+- The installer keeps the first `settings.json.bak` instead of overwriting it on every install.
+- `settings.json` is written atomically (temp file + rename) on install and uninstall, preserving symlinks and file permissions.
+
+### Fixed
+- Manual release runs (`workflow_dispatch`) now build and publish the requested tag instead of the branch they were started from.
+- Uninstall no longer removes a `statusLine` configured by another tool, and creates `settings.json.bak` before modifying it when no backup exists yet.
+
 ### Removed
 - Stale root `hud.js` copy (the maintained entry point is `bin/hud.js`) and the unused `DIM` constant.
 

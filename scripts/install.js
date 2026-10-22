@@ -26,6 +26,49 @@ function getLauncherPath() {
   return path.join(rootDir, 'bin', 'hud.sh');
 }
 
+/**
+ * Keeps the first backup ever taken, so reinstalling never loses the
+ * user's original settings.
+ */
+function backupSettings(settingsPath, raw) {
+  const backupPath = `${settingsPath}.bak`;
+  if (fs.existsSync(backupPath)) {
+    console.log(`  -> Keeping existing backup: ${backupPath}`);
+    return;
+  }
+  fs.writeFileSync(backupPath, raw, 'utf-8');
+  console.log(`  -> Created backup: ${backupPath}`);
+}
+
+/**
+ * Writes to a temp file and renames it over the target, so an interrupted
+ * write can never leave a truncated settings.json behind. Symlinks are
+ * resolved first and the original file mode is kept.
+ */
+function writeJsonAtomic(filePath, data) {
+  const targetPath = fs.existsSync(filePath) ? fs.realpathSync(filePath) : filePath;
+  const tempPath = `${targetPath}.tmp`;
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+    if (fs.existsSync(targetPath)) {
+      fs.chmodSync(tempPath, fs.statSync(targetPath).mode & 0o777);
+    }
+    fs.renameSync(tempPath, targetPath);
+  } catch (e) {
+    fs.rmSync(tempPath, { force: true });
+    throw e;
+  }
+}
+
+function isHudLauncher(command) {
+  if (typeof command !== 'string') return false;
+  const normalize = (p) => {
+    const resolved = path.resolve(p);
+    return isWindows ? resolved.toLowerCase() : resolved;
+  };
+  return normalize(command) === normalize(getLauncherPath());
+}
+
 function install() {
   const settingsPath = getSettingsPath();
   const launcherPath = getLauncherPath();
@@ -58,9 +101,7 @@ function install() {
     try {
       const raw = fs.readFileSync(settingsPath, 'utf-8');
       settings = JSON.parse(raw || '{}');
-      // Create backup
-      fs.writeFileSync(`${settingsPath}.bak`, raw, 'utf-8');
-      console.log(`  -> Created backup: ${settingsPath}.bak`);
+      backupSettings(settingsPath, raw);
     } catch (e) {
       console.error(`Error reading settings.json: ${e.message}`);
       process.exit(1);
@@ -71,12 +112,15 @@ function install() {
   }
 
   // Configure statusLine
-  settings.statusLine = {
-    type: 'command',
-    command: launcherPath
+  const updatedSettings = {
+    ...settings,
+    statusLine: {
+      type: 'command',
+      command: launcherPath
+    }
   };
 
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+  writeJsonAtomic(settingsPath, updatedSettings);
   console.log('\nSUCCESS! Antigravity HUD successfully installed.');
   console.log(`\nActive statusLine command set to:\n  ${launcherPath}\n`);
   console.log('You can also toggle or test it inside Antigravity CLI with:');
@@ -93,13 +137,20 @@ function uninstall() {
   try {
     const raw = fs.readFileSync(settingsPath, 'utf-8');
     const settings = JSON.parse(raw || '{}');
-    if (settings.statusLine) {
-      delete settings.statusLine;
-      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
-      console.log('SUCCESS! statusLine configuration removed from settings.json.');
-    } else {
+    if (!settings.statusLine) {
       console.log('No statusLine configuration found in settings.json.');
+      return;
     }
+    if (!isHudLauncher(settings.statusLine.command)) {
+      console.log('statusLine is not managed by Antigravity HUD. Leaving it untouched:');
+      console.log(`  ${settings.statusLine.command || JSON.stringify(settings.statusLine)}`);
+      return;
+    }
+
+    backupSettings(settingsPath, raw);
+    const { statusLine, ...remainingSettings } = settings;
+    writeJsonAtomic(settingsPath, remainingSettings);
+    console.log('SUCCESS! statusLine configuration removed from settings.json.');
   } catch (e) {
     console.error(`Error uninstalling: ${e.message}`);
     process.exit(1);
