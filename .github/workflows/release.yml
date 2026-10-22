@@ -1,0 +1,87 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.0)'
+        required: true
+
+jobs:
+  pre-release-check:
+    name: Pre-Release Verification Matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run Full Test Suite
+        run: npm test
+
+  publish-release:
+    name: Build & Publish Release
+    needs: pre-release-check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Tag is on Main Branch
+        run: |
+          TARGET_REF="${{ github.ref_name }}"
+          echo "Verifying that ${TARGET_REF} belongs to the main branch..."
+          git fetch origin main:main
+          if ! git merge-base --is-ancestor HEAD main; then
+            echo "ERROR: Releases can ONLY be created from commits merged into 'main'!"
+            echo "Always merge 'develop' into 'main' before creating a tag."
+            exit 1
+          fi
+          echo "✔ Verified: Tag originates from the main branch."
+
+      - name: Prepare Release Archives
+        run: |
+          VERSION="${{ github.ref_name }}"
+          DIST_DIR="dist-release/antigravity-hud"
+          mkdir -p "$DIST_DIR/bin" "$DIST_DIR/scripts"
+
+          cp bin/hud.js bin/hud.cmd bin/hud.sh "$DIST_DIR/bin/"
+          cp scripts/install.js scripts/install.ps1 scripts/install.sh "$DIST_DIR/scripts/"
+          cp hud.cmd package.json plugin.json README.md LICENSE "$DIST_DIR/"
+
+          chmod +x "$DIST_DIR/bin/hud.sh" "$DIST_DIR/bin/hud.js" "$DIST_DIR/scripts/install.sh" "$DIST_DIR/scripts/install.js"
+
+          cd dist-release
+          tar -czf "../antigravity-hud.tar.gz" antigravity-hud
+          zip -r "../antigravity-hud.zip" antigravity-hud
+          cd ..
+
+          sha256sum antigravity-hud.tar.gz antigravity-hud.zip > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            antigravity-hud.tar.gz
+            antigravity-hud.zip
+            checksums.txt
