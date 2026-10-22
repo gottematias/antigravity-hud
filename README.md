@@ -128,9 +128,7 @@ npm run uninstall:hud
 
 ## Documentation & Development
 
-- [Architecture & IPC Reference](docs/ARCHITECTURE.md)
 - [Changelog](CHANGELOG.md)
-- [Contributing Guide](CONTRIBUTING.md)
 
 Run tests locally:
 ```bash
