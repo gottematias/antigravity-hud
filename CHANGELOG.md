@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-22
+
+### Changed
+- Updated `.gitignore` to exclude local agent tooling (`.atl/`, `.codegraph/`), environment configs, coverage outputs, and editor artifacts.
+
 ## [1.0.1] - 2026-10-22
 
 ### Added
@@ -50,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ci.yml`: Multi-platform test matrix across Ubuntu, macOS, and Windows with Node.js 18, 20, and 22.
   - `release.yml`: Automated GitHub release pipeline triggered by version tags with ancestral verification from `main`.
 
-[Unreleased]: https://github.com/gottematias/antigravity-hud/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/gottematias/antigravity-hud/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/gottematias/antigravity-hud/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/gottematias/antigravity-hud/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/gottematias/antigravity-hud/releases/tag/v1.0.0
