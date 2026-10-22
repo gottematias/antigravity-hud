@@ -141,11 +141,19 @@ function render(data) {
 
   const stateMap = {
     idle: `${GREEN}⚡ IDLE${RESET}`,
-    thinking: `${YELLOW}⏳ THINKING${RESET}`,
+    thinking: `${YELLOW}🧠 THINKING${RESET}`,
     streaming: `${CYAN}✍ STREAMING${RESET}`,
-    waiting_confirmation: `${MAGENTA}✋ CONFIRM${RESET}`
+    waiting_confirmation: `${MAGENTA}✋ CONFIRM${RESET}`,
+    confirm: `${MAGENTA}✋ CONFIRM${RESET}`,
+    executing: `${BLUE}⚙ EXECUTING${RESET}`,
+    running: `${BLUE}⚙ RUNNING${RESET}`,
+    tool: `${BLUE}🔧 TOOL${RESET}`,
+    compacting: `${CYAN}📦 COMPACTING${RESET}`,
+    authenticating: `${YELLOW}🔑 AUTH${RESET}`,
+    error: `${RED}❌ ERROR${RESET}`
   };
-  const agentState = stateMap[data.agent_state] || `${GRAY}● ${data.agent_state || 'IDLE'}${RESET}`;
+  const normalizedState = (data.agent_state || 'idle').toLowerCase().trim();
+  const agentState = stateMap[normalizedState] || `${GRAY}● ${(data.agent_state || 'IDLE').toUpperCase()}${RESET}`;
 
   const l1Parts = [segAccount, segModel, segMode, agentState].filter(Boolean);
   const line1 = `${GRAY}┌─ ${RESET}${l1Parts.join(`${GRAY} ── ${RESET}`)}`;

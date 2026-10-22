@@ -93,13 +93,22 @@ Add to `~/.gemini/antigravity-cli/settings.json`:
 - **Account:** Active authenticated user email.
 - **Model + Reasoning:** LLM engine and active thinking/reasoning effort (`🧠 High / Medium / Low`).
 - **Mode:** Execution autonomy mode (`AUTO`, `PLAN`, `ACCEPT-EDITS`).
-- **Agent State:** Real-time lifecycle state (`⚡ IDLE`, `⏳ THINKING`, `✍ STREAMING`, `✋ CONFIRM`).
+- **Agent State:** Real-time lifecycle state with dedicated status icons:
+  - `⚡ IDLE`: Ready for new prompt or instruction.
+  - `🧠 THINKING`: Actively reasoning / thinking.
+  - `✍ STREAMING`: Streaming response tokens to terminal.
+  - `⚙ EXECUTING` / `⚙ RUNNING`: Running CLI commands or workflows.
+  - `🔧 TOOL`: Executing an agentic tool.
+  - `✋ CONFIRM`: Awaiting explicit user confirmation.
+  - `📦 COMPACTING`: Truncating / compacting conversation context.
+  - `🔑 AUTH`: Authenticating.
+  - `❌ ERROR`: Error state.
 
 ### Line 2: Delegation & Token Flow
 ```text
 ├─ 🤖 1 subagent ── In: 38.2k │ Out: 7.1k ── ⚡ Cache: 14.5k (38%)
 ```
-- **Subagents:** Concurrently running delegated workers.
+- **Subagents:** Concurrently running delegated workers (`🤖 0 subagents` when none).
 - **Tokens In / Out:** Prompt input tokens received and candidate output tokens generated.
 - **Context Cache:** Reused cache reads and relative efficiency percentage.
 

@@ -111,7 +111,27 @@ assert(lines[2].startsWith('\x1b[90m└─ '));
 
 console.log('✔ render 3-line standard payload passed');
 
-// 6. Test render with empty payload / fallback
+// 6. Test agent states with custom icons
+const testStates = [
+  { state: 'idle', expected: '⚡ IDLE' },
+  { state: 'thinking', expected: '🧠 THINKING' },
+  { state: 'streaming', expected: '✍ STREAMING' },
+  { state: 'waiting_confirmation', expected: '✋ CONFIRM' },
+  { state: 'executing', expected: '⚙ EXECUTING' },
+  { state: 'running', expected: '⚙ RUNNING' },
+  { state: 'tool', expected: '🔧 TOOL' },
+  { state: 'compacting', expected: '📦 COMPACTING' },
+  { state: 'authenticating', expected: '🔑 AUTH' },
+  { state: 'error', expected: '❌ ERROR' }
+];
+
+for (const { state, expected } of testStates) {
+  const rendered = stripAnsi(render({ agent_state: state }));
+  assert(rendered.includes(expected), `Expected state "${state}" to render with "${expected}"`);
+}
+console.log('✔ agent states and icons passed');
+
+// 7. Test render with empty payload / fallback
 const emptyOutput = stripAnsi(render({})).replace(/\s+/g, ' ');
 assert(emptyOutput.includes('Gemini'));
 assert(emptyOutput.includes('0 subagents'));
