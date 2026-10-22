@@ -42,12 +42,22 @@ function backupSettings(settingsPath, raw) {
 
 /**
  * Writes to a temp file and renames it over the target, so an interrupted
- * write can never leave a truncated settings.json behind.
+ * write can never leave a truncated settings.json behind. Symlinks are
+ * resolved first and the original file mode is kept.
  */
 function writeJsonAtomic(filePath, data) {
-  const tempPath = `${filePath}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
-  fs.renameSync(tempPath, filePath);
+  const targetPath = fs.existsSync(filePath) ? fs.realpathSync(filePath) : filePath;
+  const tempPath = `${targetPath}.tmp`;
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+    if (fs.existsSync(targetPath)) {
+      fs.chmodSync(tempPath, fs.statSync(targetPath).mode & 0o777);
+    }
+    fs.renameSync(tempPath, targetPath);
+  } catch (e) {
+    fs.rmSync(tempPath, { force: true });
+    throw e;
+  }
 }
 
 function isHudLauncher(command) {

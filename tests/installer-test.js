@@ -69,7 +69,43 @@ try {
   assert(output.includes('not managed by Antigravity HUD'), 'Uninstall must explain why it skipped the foreign statusLine');
   console.log('✔ Foreign statusLine protection verified');
 
-  // 6. A corrupted settings.json must abort without being overwritten
+  // 6. Uninstall creates a backup when none exists yet
+  console.log('Testing uninstall backup...');
+  fs.rmSync(`${mockSettingsPath}.bak`);
+  runInstaller([]);
+  fs.rmSync(`${mockSettingsPath}.bak`);
+  const beforeUninstall = fs.readFileSync(mockSettingsPath, 'utf-8');
+  runInstaller(['--uninstall']);
+  assert.strictEqual(fs.readFileSync(`${mockSettingsPath}.bak`, 'utf-8'), beforeUninstall, 'Uninstall must back up settings when no backup exists');
+  console.log('✔ Uninstall backup verified');
+
+  // 7. A symlinked settings.json keeps its link and its permissions
+  const linkTarget = path.join(tempDir, 'dotfiles-settings.json');
+  fs.writeFileSync(linkTarget, '{}', 'utf-8');
+  fs.rmSync(mockSettingsPath);
+  let canSymlink = true;
+  try {
+    fs.symlinkSync(linkTarget, mockSettingsPath);
+  } catch (e) {
+    canSymlink = false; // Windows without symlink privilege
+  }
+  if (canSymlink) {
+    console.log('Testing symlink and permission preservation...');
+    if (process.platform !== 'win32') fs.chmodSync(linkTarget, 0o600);
+    runInstaller([]);
+    assert(fs.lstatSync(mockSettingsPath).isSymbolicLink(), 'settings.json symlink must be preserved');
+    assert(JSON.parse(fs.readFileSync(linkTarget, 'utf-8')).statusLine, 'Symlink target must receive the update');
+    if (process.platform !== 'win32') {
+      assert.strictEqual(fs.statSync(linkTarget).mode & 0o777, 0o600, 'File permissions must be preserved');
+    }
+    console.log('✔ Symlink and permission preservation verified');
+  } else {
+    console.log('- Skipping symlink test (no symlink privilege)');
+  }
+  fs.rmSync(mockSettingsPath, { force: true });
+  fs.writeFileSync(mockSettingsPath, '{}', 'utf-8');
+
+  // 8. A corrupted settings.json must abort without being overwritten
   console.log('Testing corrupted settings protection...');
   fs.writeFileSync(mockSettingsPath, '{ not json', 'utf-8');
   assert.throws(() => runInstaller([]), 'Installer must fail on invalid JSON');
