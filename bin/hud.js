@@ -189,7 +189,7 @@ function render(data) {
     : (limitTokens > 0 ? (currentTokens / limitTokens) * 100 : 0);
 
   const ctxFormatted = `${formatTokens(currentTokens)}/${formatTokens(limitTokens)}`;
-  const segContext = `${GREEN}Ctx:${RESET} ${ctxFormatted} (${ctxPct.toFixed(1)}%) [${makeBar(ctxPct, barLen)}]`;
+  const segContext = `${CYAN}Ctx:${RESET} ${ctxFormatted} (${ctxPct.toFixed(1)}%) [${makeBar(ctxPct, barLen)}]`;
 
   const quotas = data.quota || {};
   const q5h = quotas['gemini-5h'] || quotas['3p-5h'] || null;
@@ -212,9 +212,9 @@ function render(data) {
     const usedW = Math.round((1 - qWeek.remaining_fraction) * 100);
     const resetW = formatResetDuration(qWeek.reset_in_seconds);
     const resetLabel = resetW ? ` ${GRAY}↻ ${resetW}${RESET}` : '';
-    segWeek = `${YELLOW}Wk:${RESET} ${usedW}% [${makeBar(usedW, barLen)}]${resetLabel}`;
+    segWeek = `${CYAN}Wk:${RESET} ${usedW}% [${makeBar(usedW, barLen)}]${resetLabel}`;
   } else {
-    segWeek = `${YELLOW}Wk:${RESET} 0% [${makeBar(0, barLen)}]`;
+    segWeek = `${CYAN}Wk:${RESET} 0% [${makeBar(0, barLen)}]`;
   }
 
   const l3Parts = [segContext, seg5h, segWeek];

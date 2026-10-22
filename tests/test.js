@@ -103,6 +103,9 @@ assert(output.includes('Cache: 14.5k (38%)'));
 assert(output.includes('Ctx: 45.2k/1.0M (4.3%)'));
 assert(output.includes('5h: 18%'));
 assert(output.includes('Wk: 34%'));
+assert(lines[2].includes('\x1b[36mCtx:\x1b[0m'));
+assert(lines[2].includes('\x1b[36m5h:\x1b[0m'));
+assert(lines[2].includes('\x1b[36mWk:\x1b[0m'));
 
 // Box connectors
 assert(lines[0].startsWith('\x1b[90m┌─ '));
