@@ -1,0 +1,37 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.0.0] - 2026-10-21
+
+### Added
+- **Structured 2-Line Dashboard (3.1):** Clean box-connector layout (`┌─` and `└─`) separating operational context from resource metrics.
+- **Dual Official Quota Telemetry:**
+  - 5-hour rolling window (`5h`) tracking consumed percentage, progress bar, and reset timer (`↻`).
+  - Weekly rolling window (`Wk`) tracking consumed percentage, progress bar, and reset timer (`↻`).
+- **Context Window Health:** Real-time token usage display (`<current>/<limit>`), percentage, and dynamic ANSI progress bar.
+- **Dynamic Chromatic Health Indicators:** Color transitions based on consumption thresholds:
+  - 🟢 Green (< 50% usage)
+  - 🟡 Yellow (50% - 79% usage)
+  - 🔴 Red (≥ 80% usage)
+- **Multi-Platform Support:**
+  - Native Windows launcher (`bin/hud.cmd`) with seamless child process wrapping.
+  - Native POSIX shell launcher (`bin/hud.sh`) for macOS and Linux with automatic `node` resolution across Volta, NVM, FNM, and Homebrew.
+  - Universal Node.js engine (`bin/hud.js`) with zero third-party npm dependencies (<5ms render latency).
+- **Universal Installer Engine (`scripts/install.js`):**
+  - Cross-platform detection and permission management (`chmod +x`).
+  - Automatic backup of existing `settings.json` (`settings.json.bak`).
+  - Safe rollback and uninstallation (`--uninstall`).
+  - One-click PowerShell script (`scripts/install.ps1`) and shell script (`scripts/install.sh`).
+- **Antigravity Native Plugin Manifest:** Complete and validated `plugin.json` compatible with `agy plugin install`.
+- **Automated CI/CD Workflows:**
+  - `ci.yml`: Multi-platform test matrix across Ubuntu, macOS, and Windows with Node.js 18, 20, and 22.
+  - `release.yml`: Automated GitHub release pipeline triggered by version tags with ancestral verification from `main`.
+
+[Unreleased]: https://github.com/gottematias/antigravity-hud/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/gottematias/antigravity-hud/releases/tag/v1.0.0
