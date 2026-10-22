@@ -1,6 +1,6 @@
 {
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "antigravity-hud",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Structured 2-line Antigravity CLI statusline HUD for subscription accounts with dual quota telemetry"
 }
