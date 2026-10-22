@@ -10,6 +10,10 @@ on:
         description: 'Tag to release (e.g. v1.0.0)'
         required: true
 
+env:
+  # On tag pushes ref_name is the tag; on manual runs the tag comes from the input.
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
 jobs:
   pre-release-check:
     name: Pre-Release Verification Matrix
@@ -21,8 +25,10 @@ jobs:
         node-version: [18.x, 20.x, 22.x]
 
     steps:
-      - name: Checkout repository
+      - name: Checkout release tag
         uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Set up Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -40,15 +46,18 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout release tag
         uses: actions/checkout@v4
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           fetch-depth: 0
+
+      - name: Verify Version Consistency
+        run: node scripts/release-check.js "$RELEASE_TAG" --notes release-notes.md
 
       - name: Verify Tag is on Main Branch
         run: |
-          TARGET_REF="${{ github.ref_name }}"
-          echo "Verifying that ${TARGET_REF} belongs to the main branch..."
+          echo "Verifying that ${RELEASE_TAG} belongs to the main branch..."
           git fetch origin main:main
           if ! git merge-base --is-ancestor HEAD main; then
             echo "ERROR: Releases can ONLY be created from commits merged into 'main'!"
@@ -59,7 +68,6 @@ jobs:
 
       - name: Prepare Release Archives
         run: |
-          VERSION="${{ github.ref_name }}"
           DIST_DIR="dist-release/antigravity-hud"
           mkdir -p "$DIST_DIR/bin" "$DIST_DIR/scripts"
 
@@ -80,7 +88,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          tag_name: ${{ env.RELEASE_TAG }}
+          body_path: release-notes.md
           files: |
             antigravity-hud.tar.gz
             antigravity-hud.zip

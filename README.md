@@ -124,6 +124,8 @@ npm run uninstall:hud
 .\scripts\install.ps1 -Uninstall
 ```
 
+The uninstaller only removes a `statusLine` that points to this HUD's launcher; a status line configured by another tool is left untouched. The first backup ever taken is kept at `settings.json.bak` and is never overwritten by later installs.
+
 ---
 
 ## Documentation & Development
@@ -134,6 +136,15 @@ Run tests locally:
 ```bash
 npm test
 ```
+
+### Releasing
+
+1. Merge `develop` into `main`.
+2. Bump `version` in both `package.json` and `plugin.json`, and move the `[Unreleased]` entries in `CHANGELOG.md` under a new `## [X.Y.Z]` heading.
+3. Check consistency locally: `npm run release:check -- vX.Y.Z`
+4. Tag `main` and push: `git tag vX.Y.Z && git push origin vX.Y.Z`
+
+The release pipeline refuses tags that are not on `main` or whose version does not match both manifests and a `CHANGELOG.md` section, and it publishes that section as the release notes.
 
 ---
 

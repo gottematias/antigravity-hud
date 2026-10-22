@@ -8,9 +8,11 @@
   },
   "scripts": {
     "start": "node bin/hud.js",
-    "test": "node tests/test.js && node tests/installer-test.js",
+    "test": "node tests/test.js && node tests/installer-test.js && node tests/release-check-test.js",
     "test:unit": "node tests/test.js",
     "test:installer": "node tests/installer-test.js",
+    "test:release": "node tests/release-check-test.js",
+    "release:check": "node scripts/release-check.js",
     "install:hud": "node scripts/install.js",
     "uninstall:hud": "node scripts/install.js --uninstall"
   },

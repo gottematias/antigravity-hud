@@ -10,6 +10,14 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-hud-test-'));
 const mockSettingsPath = path.join(tempDir, 'settings.json');
 const installScript = path.resolve(__dirname, '..', 'scripts', 'install.js');
 
+function runInstaller(args) {
+  return execFileSync('node', [installScript, ...args], {
+    env: { ...process.env, AGY_SETTINGS_PATH: mockSettingsPath },
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+}
+
 try {
   // 1. Initial State: Mock pre-existing settings with another setting
   const initialSettings = { allowNonWorkspaceAccess: true };
@@ -41,6 +49,32 @@ try {
   assert.strictEqual(uninstalledSettings.statusLine, undefined, 'statusLine should be removed after uninstall');
   assert.strictEqual(uninstalledSettings.allowNonWorkspaceAccess, true, 'Other keys must remain intact');
   console.log('✔ Uninstall verified');
+
+  // 4. Reinstalling must keep the original backup instead of overwriting it
+  console.log('Testing backup preservation...');
+  const originalBackup = fs.readFileSync(`${mockSettingsPath}.bak`, 'utf-8');
+  runInstaller([]);
+  runInstaller([]);
+  assert.strictEqual(fs.readFileSync(`${mockSettingsPath}.bak`, 'utf-8'), originalBackup, 'Existing backup must not be overwritten');
+  assert(!fs.existsSync(`${mockSettingsPath}.tmp`), 'Atomic write must not leave a temp file behind');
+  console.log('✔ Backup preservation verified');
+
+  // 5. Uninstall must leave a statusLine owned by another tool untouched
+  console.log('Testing foreign statusLine protection...');
+  const foreignStatusLine = { type: 'command', command: '/usr/local/bin/other-statusline' };
+  fs.writeFileSync(mockSettingsPath, JSON.stringify({ statusLine: foreignStatusLine }, null, 2), 'utf-8');
+  const output = runInstaller(['--uninstall']);
+  const foreignSettings = JSON.parse(fs.readFileSync(mockSettingsPath, 'utf-8'));
+  assert.deepStrictEqual(foreignSettings.statusLine, foreignStatusLine, 'Foreign statusLine must be preserved');
+  assert(output.includes('not managed by Antigravity HUD'), 'Uninstall must explain why it skipped the foreign statusLine');
+  console.log('✔ Foreign statusLine protection verified');
+
+  // 6. A corrupted settings.json must abort without being overwritten
+  console.log('Testing corrupted settings protection...');
+  fs.writeFileSync(mockSettingsPath, '{ not json', 'utf-8');
+  assert.throws(() => runInstaller([]), 'Installer must fail on invalid JSON');
+  assert.strictEqual(fs.readFileSync(mockSettingsPath, 'utf-8'), '{ not json', 'Corrupted settings must be left untouched');
+  console.log('✔ Corrupted settings protection verified');
 
 } finally {
   // Cleanup
