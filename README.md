@@ -5,10 +5,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node: >=18](https://img.shields.io/badge/node-%3E%3D18.0.0-green.svg)](package.json)
 
-A lightweight, zero-dependency, structured 2-line status-line HUD for [Google Antigravity CLI](https://antigravity.google) tailored specifically for **subscription accounts**.
+A lightweight, zero-dependency, structured 3-line status-line HUD for [Google Antigravity CLI](https://antigravity.google) tailored specifically for **subscription accounts**.
 
 ```text
-┌─ [Gemini 3.8 Flash (High)] ── [AUTO] ── 📁 hexa-pos-backend ──  main ── [🤖 1 subagent] ── ⚡ IDLE
+┌─ 👤 user@example.com ── [Gemini 3.8 Flash · 🧠 Medium] ── [AUTO] ── ⚡ IDLE
+├─ 🤖 1 subagent ── In: 38.2k │ Out: 7.1k ── ⚡ Cache: 14.5k (38%)
 └─ Ctx: 45.2k/1.0M (4.3%) [█░░░░░░░] │ 5h: 18% [█░░░░░░░] ↻ 3h 10m │ Wk: 34% [███░░░░░] ↻ 4d 12h
 ```
 
@@ -85,18 +86,24 @@ Add to `~/.gemini/antigravity-cli/settings.json`:
 
 ## Anatomy of the HUD
 
-### Line 1: Operational Context
+### Line 1: Identity & Engine
 ```text
-┌─ [Gemini 3.8 Flash (High)] ── [AUTO] ── 📁 hexa-pos ──  main ── [🤖 1 subagent] ── ⚡ IDLE
+┌─ 👤 user@example.com ── [Gemini 3.8 Flash · 🧠 Medium] ── [AUTO] ── ⚡ IDLE
 ```
-- **Model:** Currently active LLM engine.
+- **Account:** Active authenticated user email.
+- **Model + Reasoning:** LLM engine and active thinking/reasoning effort (`🧠 High / Medium / Low`).
 - **Mode:** Execution autonomy mode (`AUTO`, `PLAN`, `ACCEPT-EDITS`).
-- **Workspace:** Current directory basename (`📁 hexa-pos`).
-- **Git Branch:** Active repository branch (` main`).
-- **Subagents:** Active concurrent background workers (auto-hides when 0).
-- **Agent State:** Real-time state (`⚡ IDLE`, `⏳ THINKING`, `✍ STREAMING`, `✋ CONFIRM`).
+- **Agent State:** Real-time lifecycle state (`⚡ IDLE`, `⏳ THINKING`, `✍ STREAMING`, `✋ CONFIRM`).
 
-### Line 2: Resource & Quota Telemetry
+### Line 2: Delegation & Token Flow
+```text
+├─ 🤖 1 subagent ── In: 38.2k │ Out: 7.1k ── ⚡ Cache: 14.5k (38%)
+```
+- **Subagents:** Concurrently running delegated workers.
+- **Tokens In / Out:** Prompt input tokens received and candidate output tokens generated.
+- **Context Cache:** Reused cache reads and relative efficiency percentage.
+
+### Line 3: Resource & Quota Telemetry
 ```text
 └─ Ctx: 45.2k/1.0M (4.3%) [█░░░░░░░] │ 5h: 18% [█░░░░░░░] ↻ 3h 10m │ Wk: 34% [███░░░░░] ↻ 4d 12h
 ```
@@ -105,10 +112,10 @@ Add to `~/.gemini/antigravity-cli/settings.json`:
 - **`Wk` (Weekly Quota):** Consumed percentage, health bar, and reset countdown (`↻ 4d 12h`).
 
 ### Color Thresholds
-Progress bars shift color dynamically:
-- 🟢 **Green:** < 50% usage (healthy)
-- 🟡 **Yellow:** 50% – 79% usage (attention recommended)
-- 🔴 **Red:** ≥ 80% usage (critical / nearing limit)
+Progress bars and saturations shift color dynamically based on health thresholds:
+- 🟢 **Green:** < 75% usage (healthy headroom)
+- 🟡 **Yellow:** 75% – 89% usage (attention / threshold warning)
+- 🔴 **Red:** ≥ 90% usage (critical / saturation alert)
 
 ---
 
