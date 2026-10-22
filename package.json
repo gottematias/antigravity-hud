@@ -1,7 +1,7 @@
 {
   "name": "antigravity-hud",
-  "version": "1.0.2",
-  "description": "Structured 2-line Antigravity CLI statusline HUD for subscription accounts with dual quota telemetry",
+  "version": "1.1.0",
+  "description": "Structured 3-line Antigravity CLI statusline HUD for subscription accounts with dual quota telemetry",
   "main": "bin/hud.js",
   "bin": {
     "antigravity-hud": "bin/hud.js"
