@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-22
+
+### Added
+- **3-Line Modular Architecture:** Box-connected 3-line layout (`┌─`, `├─`, `└─`) displaying account identity, thinking/reasoning effort, token stream, cache efficiency, and resource quotas.
+- **Identity & Reasoning (Line 1):** Automatic Google account resolution (`👤 email`) and model thinking level badge (`🧠 High / Medium / Low`).
+- **Token Stream & Delegation (Line 2):** Real-time background subagents tracking, prompt input tokens (`In`), candidate output tokens (`Out`), and Context Cache hit metrics (`⚡ Cache`).
+- **Comprehensive Lifecycle State Icons:** Dedicated emojis and ANSI colors for all agent states (`⚡ IDLE`, `🧠 THINKING`, `✍ STREAMING`, `⚙ EXECUTING`, `🔧 TOOL`, `✋ CONFIRM`, `📦 COMPACTING`, `🔑 AUTH`, `❌ ERROR`).
+- **Unified Telemetry Labels:** Consistent Cyan styling for resource telemetry labels (`Ctx:`, `5h:`, `Wk:`).
+
+### Changed
+- **Optimized Health Thresholds:** Realigned progress bar and quota warning colors (<75% green, 75%–89% yellow, ≥90% red).
+
 ## [1.0.2] - 2026-10-22
 
 ### Changed
@@ -55,7 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ci.yml`: Multi-platform test matrix across Ubuntu, macOS, and Windows with Node.js 18, 20, and 22.
   - `release.yml`: Automated GitHub release pipeline triggered by version tags with ancestral verification from `main`.
 
-[Unreleased]: https://github.com/gottematias/antigravity-hud/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/gottematias/antigravity-hud/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/gottematias/antigravity-hud/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/gottematias/antigravity-hud/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/gottematias/antigravity-hud/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/gottematias/antigravity-hud/releases/tag/v1.0.0
