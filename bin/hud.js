@@ -13,7 +13,6 @@ const path = require('path');
 const ESC = '\x1b[';
 const RESET = `${ESC}0m`;
 const BOLD = `${ESC}1m`;
-const DIM = `${ESC}2m`;
 
 const RED = `${ESC}31m`;
 const GREEN = `${ESC}32m`;
