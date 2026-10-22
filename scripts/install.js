@@ -133,7 +133,7 @@ function uninstall() {
     }
     if (!isHudLauncher(settings.statusLine.command)) {
       console.log('statusLine is not managed by Antigravity HUD. Leaving it untouched:');
-      console.log(`  ${settings.statusLine.command}`);
+      console.log(`  ${settings.statusLine.command || JSON.stringify(settings.statusLine)}`);
       return;
     }
 

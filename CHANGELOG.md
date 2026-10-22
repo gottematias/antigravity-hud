@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Manual release runs (`workflow_dispatch`) now build and publish the requested tag instead of the branch they were started from.
-- Uninstall no longer removes a `statusLine` configured by another tool, and backs up `settings.json` before modifying it.
+- Uninstall no longer removes a `statusLine` configured by another tool, and creates `settings.json.bak` before modifying it when no backup exists yet.
 
 ### Removed
 - Stale root `hud.js` copy (the maintained entry point is `bin/hud.js`) and the unused `DIM` constant.

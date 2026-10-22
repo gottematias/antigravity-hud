@@ -144,7 +144,7 @@ npm test
 3. Check consistency locally: `npm run release:check -- vX.Y.Z`
 4. Tag `main` and push: `git tag vX.Y.Z && git push origin vX.Y.Z`
 
-The release pipeline refuses tags that are not on `main` or whose version does not match both manifests and a `CHANGELOG.md` section, and it publishes that section as the release notes.
+The release pipeline refuses tags that are not on `main` or whose version does not match both manifests and a `CHANGELOG.md` section, and it publishes that section as the release notes. Pre-release tags such as `v1.0.0-rc.1` are rejected. Uninstall only matches the launcher of the checkout it is run from, so run it from the same directory you installed from.
 
 ---
 
