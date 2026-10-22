@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- Stale root `hud.js` copy (the maintained entry point is `bin/hud.js`) and the unused `DIM` constant.
+
 ## [1.0.0] - 2026-10-21
 
 ### Added
