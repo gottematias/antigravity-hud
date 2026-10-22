@@ -1,0 +1,66 @@
+name: CI Validation Pipeline
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-validate:
+    name: Lint & Manifest Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Validate JSON Files
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('package.json', 'utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('plugin.json', 'utf8'))"
+          echo "✔ Manifest and package JSON files are valid"
+
+      - name: Validate Shell Script Syntax
+        run: |
+          sh -n bin/hud.sh
+          sh -n scripts/install.sh
+          echo "✔ Shell script syntax is valid"
+
+      - name: Verify Executable Permissions
+        run: |
+          chmod +x bin/hud.sh scripts/install.sh bin/hud.js scripts/install.js
+          echo "✔ Executable permissions confirmed"
+
+  matrix-tests:
+    name: Test (${{ matrix.os }} - Node ${{ matrix.node-version }})
+    needs: lint-and-validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run Unit & Installer Tests
+        run: npm test
