@@ -114,6 +114,75 @@ assert(lines[2].startsWith('\x1b[90m└─ '));
 
 console.log('✔ render 3-line standard payload passed');
 
+// 5b. Test render with the payload shape Antigravity CLI actually sends (captured from v1.4.5)
+const realPayload = {
+  version: '1.4.5',
+  email: 'user@example.com',
+  terminal_width: 187,
+  model: { id: 'Gemini 3.8 Flash (Medium)', display_name: 'Gemini 3.8 Flash (Medium)', effort: 'medium' },
+  agent_state: 'working',
+  context_window: {
+    total_input_tokens: 79509,
+    total_output_tokens: 6988,
+    context_window_size: 1048576,
+    used_percentage: 7.582569122314453,
+    remaining_percentage: 92.41743087768555,
+    current_usage: {
+      input_tokens: 2635,
+      output_tokens: 112,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 64355
+    }
+  },
+  quota: {
+    'gemini-5h': { remaining_fraction: 0.5725157, reset_in_seconds: 5386 },
+    'gemini-weekly': { remaining_fraction: 0.5010628, reset_in_seconds: 173564 }
+  }
+};
+
+const realOutput = stripAnsi(render(realPayload));
+assert(realOutput.includes('In: 79.5k'), 'In must come from context_window.total_input_tokens');
+assert(realOutput.includes('Out: 7.0k'), 'Out must come from context_window.total_output_tokens');
+// 64355 / (2635 input + 0 creation + 64355 read) = 96% hit rate for the last turn
+assert(realOutput.includes('Cache: 64.4k (96%)'), 'Cache must use current_usage.cache_read_input_tokens over the same turn prompt');
+assert(realOutput.includes('Ctx: 79.5k/1.0M (7.6%)'), 'Ctx must come from total_input_tokens / context_window_size / used_percentage');
+assert(realOutput.includes('5h: 43%'));
+assert(realOutput.includes('Wk: 50%'));
+
+// Context window refreshes: a later payload with grown totals must render the new values
+const grown = JSON.parse(JSON.stringify(realPayload));
+grown.context_window.total_input_tokens = 120000;
+grown.context_window.used_percentage = 11.44;
+assert(stripAnsi(render(grown)).includes('Ctx: 120.0k/1.0M (11.4%)'), 'Ctx must refresh with new payload values');
+
+// used_percentage absent: percentage is derived from total_input_tokens / context_window_size
+const noPct = JSON.parse(JSON.stringify(realPayload));
+delete noPct.context_window.used_percentage;
+assert(stripAnsi(render(noPct)).includes('Ctx: 79.5k/1.0M (7.6%)'), 'Ctx percentage must be derived when used_percentage is missing');
+
+// Explicit nulls in context_window fall through to the legacy flat fields instead of rendering 0
+const nullTotals = {
+  context_window: { total_input_tokens: null, total_output_tokens: null, context_window_size: null, used_percentage: null },
+  tokens: { input: 1000, output: 200, cached: 500 }
+};
+const nullOutput = stripAnsi(render(nullTotals));
+assert(nullOutput.includes('In: 1.0k'), 'null total_input_tokens must fall back to tokens.input');
+assert(nullOutput.includes('Out: 200'), 'null total_output_tokens must fall back to tokens.output');
+assert(nullOutput.includes('Cache: 500 (50%)'), 'legacy cache hit rate must still use input tokens as base');
+
+// Payload carrying both shapes: context_window wins
+const mixed = JSON.parse(JSON.stringify(realPayload));
+mixed.tokens = { input: 1, output: 2, cached: 3 };
+const mixedOutput = stripAnsi(render(mixed));
+assert(mixedOutput.includes('In: 79.5k') && mixedOutput.includes('Out: 7.0k'), 'context_window must take precedence over flat tokens');
+
+// current_usage without cache fields: no cache segment value, no crash
+const noCache = JSON.parse(JSON.stringify(realPayload));
+noCache.context_window.current_usage = { input_tokens: 100, output_tokens: 5 };
+assert(stripAnsi(render(noCache)).includes('Cache: 0'), 'missing cache_read_input_tokens must render Cache: 0');
+
+console.log('✔ render real Antigravity payload passed');
+
 // 6. Test agent states with custom icons
 const testStates = [
   { state: 'idle', expected: '⚡ IDLE' },
