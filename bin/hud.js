@@ -176,10 +176,11 @@ function render(data) {
   if (data.subagents && typeof data.subagents === 'object') {
     subagentsCount = Object.keys(data.subagents).length;
   }
-  const subagentsLabel = subagentsCount === 1 ? '1 subagent' : `${subagentsCount} subagents`;
+  const rawSubLabel = subagentsCount === 1 ? '1 subagent' : `${subagentsCount} subagents`;
+  const subagentsLabel = rawSubLabel.padEnd(11);
   const segSubagents = subagentsCount > 0
     ? `${BLUE}🤖 ${subagentsLabel}${RESET}`
-    : `${GRAY}🤖 0 subagents${RESET}`;
+    : `${GRAY}🤖 ${subagentsLabel}${RESET}`;
 
   // Antigravity CLI sends token counters under context_window (total_*, current_usage);
   // the flat `tokens` shape is kept as a fallback.
@@ -187,7 +188,9 @@ function render(data) {
   const tokens = data.tokens || data.token_usage || {};
   const inTokens = firstNumber(ctx.total_input_tokens, tokens.input, tokens.prompt, tokens.prompt_tokens, ctx.current);
   const outTokens = firstNumber(ctx.total_output_tokens, tokens.output, tokens.completion, tokens.candidates, tokens.completion_tokens);
-  const segTokens = `${CYAN}In:${RESET} ${formatTokens(inTokens)} ${GRAY}│${RESET} ${MAGENTA}Out:${RESET} ${formatTokens(outTokens)}`;
+  const segInVal = formatTokens(inTokens).padStart(6);
+  const segOutVal = formatTokens(outTokens).padStart(6);
+  const segTokens = `${CYAN}In:${RESET} ${segInVal} ${GRAY}│${RESET} ${MAGENTA}Out:${RESET} ${segOutVal}`;
 
   const usage = ctx.current_usage || {};
   const cacheTokens = firstNumber(usage.cache_read_input_tokens, tokens.cached, tokens.cache_read, data.cache?.tokens);
@@ -196,7 +199,9 @@ function render(data) {
   const turnPrompt = firstNumber(usage.input_tokens) + firstNumber(usage.cache_creation_input_tokens) + cacheTokens;
   const cacheBase = usage.cache_read_input_tokens != null && turnPrompt > 0 ? turnPrompt : inTokens;
   const cachePct = cacheBase > 0 && cacheTokens > 0 ? Math.round((cacheTokens / cacheBase) * 100) : 0;
-  const segCache = `${YELLOW}⚡ Cache:${RESET} ${formatTokens(cacheTokens)}${cacheTokens > 0 ? ` (${cachePct}%)` : ''}`;
+  const segCacheVal = formatTokens(cacheTokens).padStart(6);
+  const segCachePct = `${String(cachePct).padStart(3)}%`;
+  const segCache = `${YELLOW}⚡ Cache:${RESET} ${segCacheVal} (${segCachePct})`;
 
   const l2Parts = [segSubagents, segTokens, segCache];
   const line2 = `${GRAY}├─ ${RESET}${l2Parts.join(`${GRAY} ── ${RESET}`)}`;
@@ -209,34 +214,34 @@ function render(data) {
     ? reportedPct
     : (limitTokens > 0 ? (currentTokens / limitTokens) * 100 : 0);
 
-  const ctxFormatted = `${formatTokens(currentTokens)}/${formatTokens(limitTokens)}`;
-  const segContext = `${CYAN}Ctx:${RESET} ${ctxFormatted} (${ctxPct.toFixed(1)}%) [${makeBar(ctxPct, barLen)}]`;
+  const curTokFormatted = formatTokens(currentTokens).padStart(6);
+  const limTokFormatted = formatTokens(limitTokens).padStart(5);
+  const pctCtxFormatted = `${ctxPct.toFixed(1).padStart(5)}%`;
+  const segContext = `${CYAN}Ctx:${RESET} ${curTokFormatted}/${limTokFormatted} (${pctCtxFormatted}) [${makeBar(ctxPct, barLen)}]`;
 
   const quotas = data.quota || {};
   const q5h = quotas['gemini-5h'] || quotas['3p-5h'] || null;
   const qWeek = quotas['gemini-weekly'] || quotas['3p-weekly'] || null;
 
   // 5-Hour Window Segment
-  let seg5h = '';
-  if (q5h && typeof q5h.remaining_fraction === 'number') {
-    const used5h = Math.round((1 - q5h.remaining_fraction) * 100);
-    const reset5h = formatResetDuration(q5h.reset_in_seconds);
-    const resetLabel = reset5h ? ` ${GRAY}↻ ${reset5h}${RESET}` : '';
-    seg5h = `${CYAN}5h:${RESET} ${used5h}% [${makeBar(used5h, barLen)}]${resetLabel}`;
-  } else {
-    seg5h = `${CYAN}5h:${RESET} 0% [${makeBar(0, barLen)}]`;
-  }
+  const has5h = q5h && typeof q5h.remaining_fraction === 'number';
+  const used5h = has5h ? Math.round((1 - q5h.remaining_fraction) * 100) : 0;
+  const reset5h = has5h ? formatResetDuration(q5h.reset_in_seconds) : '';
+  const used5hStr = `${String(used5h).padStart(3)}%`;
+  const resetLabel5h = reset5h
+    ? ` ${GRAY}↻ ${reset5h.padStart(7)}${RESET}`
+    : '          ';
+  const seg5h = `${CYAN}5h:${RESET} ${used5hStr} [${makeBar(used5h, barLen)}]${resetLabel5h}`;
 
   // Weekly Window Segment
-  let segWeek = '';
-  if (qWeek && typeof qWeek.remaining_fraction === 'number') {
-    const usedW = Math.round((1 - qWeek.remaining_fraction) * 100);
-    const resetW = formatResetDuration(qWeek.reset_in_seconds);
-    const resetLabel = resetW ? ` ${GRAY}↻ ${resetW}${RESET}` : '';
-    segWeek = `${CYAN}Wk:${RESET} ${usedW}% [${makeBar(usedW, barLen)}]${resetLabel}`;
-  } else {
-    segWeek = `${CYAN}Wk:${RESET} 0% [${makeBar(0, barLen)}]`;
-  }
+  const hasWeek = qWeek && typeof qWeek.remaining_fraction === 'number';
+  const usedW = hasWeek ? Math.round((1 - qWeek.remaining_fraction) * 100) : 0;
+  const resetW = hasWeek ? formatResetDuration(qWeek.reset_in_seconds) : '';
+  const usedWStr = `${String(usedW).padStart(3)}%`;
+  const resetLabelW = resetW
+    ? ` ${GRAY}↻ ${resetW.padStart(7)}${RESET}`
+    : '';
+  const segWeek = `${CYAN}Wk:${RESET} ${usedWStr} [${makeBar(usedW, barLen)}]${resetLabelW}`;
 
   const l3Parts = [segContext, seg5h, segWeek];
   const line3 = `${GRAY}└─ ${RESET}${l3Parts.join(`${GRAY} │ ${RESET}`)}`;
@@ -261,7 +266,7 @@ if (require.main === module) {
   try {
     const input = fs.readFileSync(0, 'utf-8');
     if (!input || !input.trim()) {
-      process.stdout.write(`┌─ [Antigravity CLI]\n├─ 🤖 0 subagents ── In: 0 │ Out: 0 ── ⚡ Cache: 0\n└─ Ctx: 0% [░░░░░░░░] │ 5h: 0% [░░░░░░░░] │ Wk: 0% [░░░░░░░░]`);
+      process.stdout.write(render({}));
       process.exit(0);
     }
 
@@ -269,6 +274,6 @@ if (require.main === module) {
     const output = render(payload);
     process.stdout.write(output);
   } catch (err) {
-    process.stdout.write(`┌─ [Antigravity CLI] (init)\n├─ 🤖 0 subagents ── In: 0 │ Out: 0 ── ⚡ Cache: 0\n└─ Ctx: [░░░░░░░░] │ 5h: [░░░░░░░░] │ Wk: [░░░░░░░░]`);
+    process.stdout.write(render({}));
   }
 }

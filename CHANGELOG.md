@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Fixed-width column alignment:** Padded value slots across Line 2 (subagents, tokens in/out, cache) and Line 3 (context window, 5h rolling quota, weekly quota, countdown timers) to eliminate horizontal jitter and preserve static column positions across updates.
+
 ## [1.1.1] - 2026-10-22
 
 ### Fixed
