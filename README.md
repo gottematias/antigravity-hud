@@ -144,14 +144,27 @@ The uninstaller only removes a `statusLine` that points to this HUD's launcher; 
 
 ---
 
-## Documentation & Development
+## Development & Contributing
 
 - [Changelog](CHANGELOG.md)
 
-Run tests locally:
-```bash
-npm test
-```
+### Branching & Contribution Workflow
+
+1. **Base Branch:** Always create new feature or bugfix branches off `develop` (never `main`):
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b feature/your-feature-name   # or fix/your-bug-fix
+   ```
+
+2. **Local Validation:** Ensure the entire test suite passes before committing or pushing:
+   ```bash
+   npm test
+   ```
+
+3. **Pull Request Target:** Open your PR targeting the `develop` branch. Automated CI validation will run lint checks and cross-platform matrix tests (Ubuntu, macOS, Windows across Node 18, 20, 22).
+
+4. **Integration to Production:** Merges into `main` occur only when preparing an official release from `develop`.
 
 ### Releasing
 
