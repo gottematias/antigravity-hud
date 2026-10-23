@@ -56,6 +56,19 @@ function formatTokens(count) {
 }
 
 /**
+ * Returns the first candidate that is a usable number, skipping null/undefined/''/NaN.
+ * Unlike `??`, an explicit null or empty value falls through to the next candidate.
+ */
+function firstNumber(...candidates) {
+  for (const value of candidates) {
+    if (value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))) {
+      return Number(value);
+    }
+  }
+  return 0;
+}
+
+/**
  * Formats countdown seconds into compact duration notation (e.g. 3h 15m, 4d 12h).
  */
 function formatResetDuration(seconds) {
@@ -168,24 +181,32 @@ function render(data) {
     ? `${BLUE}🤖 ${subagentsLabel}${RESET}`
     : `${GRAY}🤖 0 subagents${RESET}`;
 
+  // Antigravity CLI sends token counters under context_window (total_*, current_usage);
+  // the flat `tokens` shape is kept as a fallback.
+  const ctx = data.context_window || {};
   const tokens = data.tokens || data.token_usage || {};
-  const inTokens = Number(tokens.input ?? tokens.prompt ?? tokens.prompt_tokens ?? data.context_window?.current ?? 0);
-  const outTokens = Number(tokens.output ?? tokens.completion ?? tokens.candidates ?? tokens.completion_tokens ?? 0);
+  const inTokens = firstNumber(ctx.total_input_tokens, tokens.input, tokens.prompt, tokens.prompt_tokens, ctx.current);
+  const outTokens = firstNumber(ctx.total_output_tokens, tokens.output, tokens.completion, tokens.candidates, tokens.completion_tokens);
   const segTokens = `${CYAN}In:${RESET} ${formatTokens(inTokens)} ${GRAY}│${RESET} ${MAGENTA}Out:${RESET} ${formatTokens(outTokens)}`;
 
-  const cacheTokens = Number(tokens.cached ?? tokens.cache_read ?? data.cache?.tokens ?? 0);
-  const cachePct = inTokens > 0 && cacheTokens > 0 ? Math.round((cacheTokens / inTokens) * 100) : 0;
+  const usage = ctx.current_usage || {};
+  const cacheTokens = firstNumber(usage.cache_read_input_tokens, tokens.cached, tokens.cache_read, data.cache?.tokens);
+  // Hit rate must compare against the same turn's full prompt (fresh + cache creation + cache read);
+  // total_input_tokens is a different, larger base. Without current_usage, fall back to inTokens.
+  const turnPrompt = firstNumber(usage.input_tokens) + firstNumber(usage.cache_creation_input_tokens) + cacheTokens;
+  const cacheBase = usage.cache_read_input_tokens != null && turnPrompt > 0 ? turnPrompt : inTokens;
+  const cachePct = cacheBase > 0 && cacheTokens > 0 ? Math.round((cacheTokens / cacheBase) * 100) : 0;
   const segCache = `${YELLOW}⚡ Cache:${RESET} ${formatTokens(cacheTokens)}${cacheTokens > 0 ? ` (${cachePct}%)` : ''}`;
 
   const l2Parts = [segSubagents, segTokens, segCache];
   const line2 = `${GRAY}├─ ${RESET}${l2Parts.join(`${GRAY} ── ${RESET}`)}`;
 
   // --- LINE 3: RESOURCE TELEMETRY (Context + 5h Quota + Weekly Quota) ---
-  const ctx = data.context_window || {};
-  const currentTokens = Number(ctx.current) || 0;
-  const limitTokens = Number(ctx.limit) || 1048576;
-  const ctxPct = typeof ctx.percentage === 'number'
-    ? ctx.percentage
+  const currentTokens = firstNumber(ctx.total_input_tokens, ctx.current);
+  const limitTokens = firstNumber(ctx.context_window_size, ctx.limit) || 1048576;
+  const reportedPct = [ctx.used_percentage, ctx.percentage].find((p) => typeof p === 'number');
+  const ctxPct = reportedPct !== undefined
+    ? reportedPct
     : (limitTokens > 0 ? (currentTokens / limitTokens) * 100 : 0);
 
   const ctxFormatted = `${formatTokens(currentTokens)}/${formatTokens(limitTokens)}`;
