@@ -9,8 +9,8 @@ A lightweight, zero-dependency, structured 3-line status-line HUD for [Google An
 
 ```text
 ┌─ 👤 user@example.com ── [Gemini 3.8 Flash · 🧠 Medium] ── [AUTO] ── ⚡ IDLE
-├─ 🤖 1 subagent ── In: 38.2k │ Out: 7.1k ── ⚡ Cache: 14.5k (38%)
-└─ Ctx: 45.2k/1.0M (4.3%) [█░░░░░░░] │ 5h: 18% [█░░░░░░░] ↻ 3h 10m │ Wk: 34% [███░░░░░] ↻ 4d 12h
+├─ 🤖 1 subagent  ── In:  38.2k │ Out:   7.1k ── ⚡ Cache:  14.5k ( 38%)
+└─ Ctx:  45.2k/ 1.0M (  4.3%) [█░░░░░░░] │ 5h:  18% [█░░░░░░░] ↻  3h 10m │ Wk:  34% [███░░░░░] ↻  4d 12h
 ```
 
 ---
@@ -106,7 +106,7 @@ Add to `~/.gemini/antigravity-cli/settings.json`:
 
 ### Line 2: Delegation & Token Flow
 ```text
-├─ 🤖 1 subagent ── In: 38.2k │ Out: 7.1k ── ⚡ Cache: 14.5k (38%)
+├─ 🤖 1 subagent  ── In:  38.2k │ Out:   7.1k ── ⚡ Cache:  14.5k ( 38%)
 ```
 - **Subagents:** Concurrently running delegated workers (`🤖 0 subagents` when none).
 - **Tokens In / Out:** Prompt input tokens received and candidate output tokens generated.
@@ -114,7 +114,7 @@ Add to `~/.gemini/antigravity-cli/settings.json`:
 
 ### Line 3: Resource & Quota Telemetry
 ```text
-└─ Ctx: 45.2k/1.0M (4.3%) [█░░░░░░░] │ 5h: 18% [█░░░░░░░] ↻ 3h 10m │ Wk: 34% [███░░░░░] ↻ 4d 12h
+└─ Ctx:  45.2k/ 1.0M (  4.3%) [█░░░░░░░] │ 5h:  18% [█░░░░░░░] ↻  3h 10m │ Wk:  34% [███░░░░░] ↻  4d 12h
 ```
 - **`Ctx` (Context Window):** Tokens used / total limit, percentage, and health bar.
 - **`5h` (5-Hour Rolling Quota):** Consumed percentage, health bar, and reset countdown (`↻ 3h 10m`).
