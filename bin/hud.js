@@ -2,7 +2,7 @@
 /**
  * Antigravity CLI Custom HUD (Status Line)
  * Architecture: Clean 3-line Dashboard with Box Connectors (3.1)
- * Line 1: Account ── Model + Reasoning ── Mode ── Agent State
+ * Line 1: Account ── Model + Reasoning ── Mode ── Agent State ── Session & Activity
  * Line 2: Subagents ── Tokens In / Out ── Context Cache
  * Line 3: Context Window ── 5h Rolling Quota ── Weekly Budget
  * Cross-platform: Windows, Linux, macOS.
@@ -11,6 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 // ANSI Color & Formatting Constants
 const ESC = '\x1b[';
@@ -86,6 +87,135 @@ function formatResetDuration(seconds) {
 }
 
 /**
+ * Formats elapsed duration into compact notation (e.g. 18s, 4m, 1h 24m, 2d 5h).
+ */
+function formatElapsedDuration(seconds) {
+  const s = Math.max(0, Number(seconds) || 0);
+  if (s < 60) return `${s}s`;
+  const totalMinutes = Math.floor(s / 60);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const remainingMinutes = totalMinutes % (24 * 60);
+  const hours = Math.floor(remainingMinutes / 60);
+  const minutes = remainingMinutes % 60;
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+const ACTIVE_STATES = new Set([
+  'thinking',
+  'streaming',
+  'executing',
+  'running',
+  'tool',
+  'compacting',
+  'authenticating'
+]);
+
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
+function getSessionStatePath(customPath) {
+  if (customPath !== undefined) return customPath;
+  if (process.env.AGY_HUD_SESSION_FILE) return process.env.AGY_HUD_SESSION_FILE;
+  return path.join(os.tmpdir(), 'antigravity-hud-session.json');
+}
+
+/**
+ * Resolves session duration and activity timers using lightweight persistent state.
+ */
+function resolveSessionTiming(data, options = {}) {
+  const now = typeof options.now === 'number' ? options.now : Date.now();
+  const stateFilePath = getSessionStatePath(options.stateFile);
+  const normalizedState = (data.agent_state || 'idle').toLowerCase().trim();
+  const isActive = ACTIVE_STATES.has(normalizedState);
+  const currentTokens = Number(data.context_window?.total_input_tokens || data.tokens?.input || 0);
+
+  let allStates = { sessions: {} };
+  if (options.sessionState && typeof options.sessionState === 'object') {
+    allStates = options.sessionState;
+    if (!allStates.sessions) allStates.sessions = {};
+  } else if (stateFilePath && fs.existsSync(stateFilePath)) {
+    try {
+      const raw = fs.readFileSync(stateFilePath, 'utf8');
+      allStates = JSON.parse(raw) || { sessions: {} };
+      if (!allStates.sessions || typeof allStates.sessions !== 'object') {
+        allStates.sessions = {};
+      }
+    } catch (_) {
+      allStates = { sessions: {} };
+    }
+  }
+
+  const sessionKey = String(data.session_id || data.conversation_id || data.workspace || 'default');
+  let entry = allStates.sessions[sessionKey];
+
+  const isExpired = entry && (now - entry.lastTick > SESSION_TIMEOUT_MS);
+  const isTokenReset = entry && entry.lastTokens > 20000 && currentTokens < 5000;
+
+  if (!entry || isExpired || isTokenReset) {
+    entry = {
+      sessionStartTime: now,
+      lastActiveTime: now,
+      lastState: normalizedState,
+      turnStartTime: isActive ? now : null,
+      totalActiveMs: 0,
+      lastTick: now,
+      lastTokens: currentTokens
+    };
+  } else {
+    const wasActive = ACTIVE_STATES.has(entry.lastState);
+    const delta = Math.max(0, now - (entry.lastTick || now));
+    if (wasActive) {
+      entry.totalActiveMs = (entry.totalActiveMs || 0) + delta;
+    }
+
+    if (isActive) {
+      if (!wasActive || !entry.turnStartTime) {
+        entry.turnStartTime = now;
+      }
+      entry.lastActiveTime = now;
+    } else {
+      if (wasActive) {
+        entry.lastActiveTime = now;
+      }
+      entry.turnStartTime = null;
+    }
+
+    entry.lastState = normalizedState;
+    entry.lastTick = now;
+    entry.lastTokens = currentTokens;
+  }
+
+  allStates.sessions[sessionKey] = entry;
+
+  for (const k of Object.keys(allStates.sessions)) {
+    if (now - allStates.sessions[k].lastTick > 24 * 60 * 60 * 1000) {
+      delete allStates.sessions[k];
+    }
+  }
+
+  if (options.persist !== false && stateFilePath && !options.sessionState) {
+    try {
+      fs.writeFileSync(stateFilePath, JSON.stringify(allStates), 'utf8');
+    } catch (_) {}
+  }
+
+  const sessionElapsedSec = Math.max(0, Math.floor((now - entry.sessionStartTime) / 1000));
+  const turnElapsedSec = isActive && entry.turnStartTime ? Math.max(0, Math.floor((now - entry.turnStartTime) / 1000)) : 0;
+  const idleElapsedSec = !isActive && entry.lastActiveTime ? Math.max(0, Math.floor((now - entry.lastActiveTime) / 1000)) : 0;
+  const activeWorkElapsedSec = Math.max(0, Math.floor(((entry.totalActiveMs || 0) + (isActive && entry.turnStartTime ? (now - entry.turnStartTime) : 0)) / 1000));
+
+  return {
+    isActive,
+    sessionElapsedSec,
+    turnElapsedSec,
+    idleElapsedSec,
+    activeWorkElapsedSec
+  };
+}
+
+/**
  * Resolves active account email from payload or local config.
  */
 function resolveAccount(data) {
@@ -137,10 +267,13 @@ function resolveModelAndReasoning(data) {
 /**
  * Main Statusline Renderer (3-Line Modular Architecture)
  */
-function render(data) {
+function render(data, options = {}) {
   const termWidth = Number(data.terminal_width) || 120;
   const isNarrow = termWidth < 95;
   const barLen = isNarrow ? 6 : 8;
+
+  // --- RESOLVE SESSION TIMING ---
+  const timing = resolveSessionTiming(data, options);
 
   // --- LINE 1: IDENTITY, CEREBRO Y ESTADO ---
   const account = resolveAccount(data);
@@ -166,9 +299,26 @@ function render(data) {
     error: `${RED}❌ ERROR${RESET}`
   };
   const normalizedState = (data.agent_state || 'idle').toLowerCase().trim();
-  const agentState = stateMap[normalizedState] || `${GRAY}● ${(data.agent_state || 'IDLE').toUpperCase()}${RESET}`;
+  const rawAgentState = stateMap[normalizedState] || `${GRAY}● ${(data.agent_state || 'IDLE').toUpperCase()}${RESET}`;
 
-  const l1Parts = [segAccount, segModel, segMode, agentState].filter(Boolean);
+  const turnLabel = timing.isActive && timing.turnElapsedSec > 0
+    ? ` ${GRAY}(${formatElapsedDuration(timing.turnElapsedSec)})${RESET}`
+    : '';
+  const agentState = `${rawAgentState}${turnLabel}`;
+
+  const sessionStr = `⏱️ ${formatElapsedDuration(timing.sessionElapsedSec)}`;
+  let segTiming = '';
+  if (timing.isActive) {
+    segTiming = `${GRAY}${sessionStr}${RESET}`;
+  } else {
+    if (timing.idleElapsedSec >= 60 && !isNarrow) {
+      segTiming = `${GRAY}${sessionStr} │ 💤 hace ${formatElapsedDuration(timing.idleElapsedSec)}${RESET}`;
+    } else {
+      segTiming = `${GRAY}${sessionStr}${RESET}`;
+    }
+  }
+
+  const l1Parts = [segAccount, segModel, segMode, agentState, segTiming].filter(Boolean);
   const line1 = `${GRAY}┌─ ${RESET}${l1Parts.join(`${GRAY} ── ${RESET}`)}`;
 
   // --- LINE 2: SUBAGENTS, TOKENS IN/OUT & CACHE ---
@@ -256,8 +406,10 @@ if (typeof module !== 'undefined' && module.exports) {
     makeBar,
     formatTokens,
     formatResetDuration,
+    formatElapsedDuration,
     resolveAccount,
-    resolveModelAndReasoning
+    resolveModelAndReasoning,
+    resolveSessionTiming
   };
 }
 

@@ -8,7 +8,7 @@
 A lightweight, zero-dependency, structured 3-line status-line HUD for [Google Antigravity CLI](https://antigravity.google) tailored specifically for **subscription accounts**.
 
 ```text
-┌─ 👤 user@example.com ── [Gemini 3.8 Flash · 🧠 Medium] ── [AUTO] ── ⚡ IDLE
+┌─ 👤 user@example.com ── [Gemini 3.8 Flash · 🧠 Medium] ── [AUTO] ── ⚡ IDLE ── ⏱️ 1h 24m │ 💤 hace 3m
 ├─ 🤖 1 subagent  ── In:  38.2k │ Out:   7.1k ── ⚡ Cache:  14.5k ( 38%)
 └─ Ctx:  45.2k/ 1.0M (  4.3%) [█░░░░░░░] │ 5h:  18% [█░░░░░░░] ↻  3h 10m │ Wk:  34% [███░░░░░] ↻  4d 12h
 ```
@@ -23,7 +23,8 @@ This HUD prioritizes:
 1. **Context Window Health:** Know exactly when your context is saturating before the model starts losing focus.
 2. **Dual Official Quotas:** Real-time visibility into both your 5-hour rolling limit and your weekly budget with reset countdowns (`↻`).
 3. **Subagent Visibility:** Automatically tracks how many background subagents are executing in parallel.
-4. **Zero Overhead:** Pure vanilla Node.js (<5ms execution time), no external npm dependencies, and no network blocking.
+4. **Session & Activity Telemetry:** Continuous visibility into current session duration, turn execution time, and inactivity tracking without slowing down terminal rendering (<5ms).
+5. **Zero Overhead:** Pure vanilla Node.js (<5ms execution time), no external npm dependencies, and no network blocking.
 
 ---
 
@@ -88,7 +89,7 @@ Add to `~/.gemini/antigravity-cli/settings.json`:
 
 ### Line 1: Identity & Engine
 ```text
-┌─ 👤 user@example.com ── [Gemini 3.8 Flash · 🧠 Medium] ── [AUTO] ── ⚡ IDLE
+┌─ 👤 user@example.com ── [Gemini 3.8 Flash · 🧠 Medium] ── [AUTO] ── ⚡ IDLE ── ⏱️ 1h 24m │ 💤 hace 3m
 ```
 - **Account:** Active authenticated user email.
 - **Model + Reasoning:** LLM engine and active thinking/reasoning effort (`🧠 High / Medium / Low`).
@@ -97,12 +98,15 @@ Add to `~/.gemini/antigravity-cli/settings.json`:
   - `⚡ IDLE`: Ready for new prompt or instruction.
   - `🧠 THINKING`: Actively reasoning / thinking.
   - `✍ STREAMING`: Streaming response tokens to terminal.
-  - `⚙ EXECUTING` / `⚙ RUNNING`: Running CLI commands or workflows.
+  - `⚙ EXECUTING` / `⚙ RUNNING`: Running CLI commands or workflows (with turn duration timer, e.g. `⚙ EXECUTING (18s)`).
   - `🔧 TOOL`: Executing an agentic tool.
   - `✋ CONFIRM`: Awaiting explicit user confirmation.
   - `📦 COMPACTING`: Truncating / compacting conversation context.
   - `🔑 AUTH`: Authenticating.
   - `❌ ERROR`: Error state.
+- **Session Duration & Activity (`⏱️` / `💤`):**
+  - Total elapsed session time (`⏱️ 1h 24m`).
+  - Idle counter showing elapsed time since last activity (`💤 hace 3m`). Automatically drops the idle detail in narrow terminal viewports to prevent wrapping.
 
 ### Line 2: Delegation & Token Flow
 ```text
