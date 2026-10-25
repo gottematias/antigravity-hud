@@ -4,8 +4,10 @@ const {
   makeBar,
   formatTokens,
   formatResetDuration,
+  formatElapsedDuration,
   resolveModelAndReasoning,
-  resolveAccount
+  resolveAccount,
+  resolveSessionTiming
 } = require('../bin/hud.js');
 
 console.log('Running test suite for Antigravity HUD...');
@@ -231,5 +233,137 @@ assert.strictEqual(linesA[2].lastIndexOf('│'), linesB[2].lastIndexOf('│'), '
 assert.strictEqual(linesA[2].lastIndexOf('│'), linesC[2].lastIndexOf('│'), 'Line 3 pipe 2 column must be invariant');
 assert.strictEqual(linesA[2].indexOf('Wk:'), linesB[2].indexOf('Wk:'), 'Line 3 Wk label column must be invariant');
 console.log('✔ column alignment invariance across payloads verified');
+
+// 9. Test elapsed duration formatting
+assert.strictEqual(formatElapsedDuration(0), '0s');
+assert.strictEqual(formatElapsedDuration(18), '18s');
+assert.strictEqual(formatElapsedDuration(59), '59s');
+assert.strictEqual(formatElapsedDuration(60), '1m');
+assert.strictEqual(formatElapsedDuration(180), '3m');
+assert.strictEqual(formatElapsedDuration(5040), '1h 24m');
+assert.strictEqual(formatElapsedDuration(86400), '1d 0h');
+assert.strictEqual(formatElapsedDuration(90000), '1d 1h');
+console.log('✔ formatElapsedDuration passed');
+
+// 10. Test resolveSessionTiming transitions and boundaries
+const baseTime = 1700000000000;
+const testState = { sessions: {} };
+
+// Step A: First prompt in session (idle at t=0)
+const timingA = resolveSessionTiming(
+  { session_id: 'test-sess', agent_state: 'idle' },
+  { now: baseTime, sessionState: testState, persist: false }
+);
+assert.strictEqual(timingA.sessionElapsedSec, 0);
+assert.strictEqual(timingA.turnElapsedSec, 0);
+assert.strictEqual(timingA.idleElapsedSec, 0);
+assert.strictEqual(timingA.isActive, false);
+
+// Step B: Agent transitions to executing 20s later
+const timingB = resolveSessionTiming(
+  { session_id: 'test-sess', agent_state: 'executing' },
+  { now: baseTime + 20000, sessionState: testState, persist: false }
+);
+assert.strictEqual(timingB.sessionElapsedSec, 20);
+assert.strictEqual(timingB.turnElapsedSec, 0);
+assert.strictEqual(timingB.isActive, true);
+
+// Step C: Agent still executing 18s into the turn (t=38s)
+const timingC = resolveSessionTiming(
+  { session_id: 'test-sess', agent_state: 'executing' },
+  { now: baseTime + 38000, sessionState: testState, persist: false }
+);
+assert.strictEqual(timingC.sessionElapsedSec, 38);
+assert.strictEqual(timingC.turnElapsedSec, 18);
+assert.strictEqual(timingC.isActive, true);
+
+// Step D: Agent finishes and goes idle at t=50s
+const timingD = resolveSessionTiming(
+  { session_id: 'test-sess', agent_state: 'idle' },
+  { now: baseTime + 50000, sessionState: testState, persist: false }
+);
+assert.strictEqual(timingD.sessionElapsedSec, 50);
+assert.strictEqual(timingD.turnElapsedSec, 0);
+assert.strictEqual(timingD.idleElapsedSec, 0);
+assert.strictEqual(timingD.isActive, false);
+
+// Step E: Agent idle 3 minutes later (t=230s, 180s of inactivity)
+const timingE = resolveSessionTiming(
+  { session_id: 'test-sess', agent_state: 'idle' },
+  { now: baseTime + 230000, sessionState: testState, persist: false }
+);
+assert.strictEqual(timingE.sessionElapsedSec, 230);
+assert.strictEqual(timingE.idleElapsedSec, 180);
+assert.strictEqual(timingE.isActive, false);
+
+// Step F: New session_id resets timing
+const timingF = resolveSessionTiming(
+  { session_id: 'new-sess', agent_state: 'idle' },
+  { now: baseTime + 300000, sessionState: testState, persist: false }
+);
+assert.strictEqual(timingF.sessionElapsedSec, 0);
+console.log('✔ resolveSessionTiming transitions and boundaries passed');
+
+// 11. Test Line 1 session and activity rendering
+const sessionMemory = {
+  sessions: {
+    'render-sess': {
+      sessionStartTime: baseTime,
+      lastActiveTime: baseTime + 5040000 - 180000, // 3 minutes ago
+      lastState: 'idle',
+      turnStartTime: null,
+      totalActiveMs: 600000,
+      lastTick: baseTime + 5040000,
+      lastTokens: 5000
+    }
+  }
+};
+
+// 11a: IDLE with 3m inactivity renders session time and idle indicator
+const idleRender = stripAnsi(render(
+  { session_id: 'render-sess', agent_state: 'idle', terminal_width: 120 },
+  { now: baseTime + 5040000, sessionState: sessionMemory, persist: false }
+));
+assert(idleRender.includes('⚡ IDLE   ⏱️ 1h 24m (💤 hace 3m)'), 'Line 1 IDLE must show session duration and idle elapsed');
+
+// 11b: EXECUTING with turn in progress renders turn duration
+sessionMemory.sessions['render-sess'].lastState = 'executing';
+sessionMemory.sessions['render-sess'].turnStartTime = baseTime + 5040000 - 18000; // 18s ago
+const execRender = stripAnsi(render(
+  { session_id: 'render-sess', agent_state: 'executing', terminal_width: 120 },
+  { now: baseTime + 5040000, sessionState: sessionMemory, persist: false }
+));
+assert(execRender.includes('⚙ EXECUTING (18s)   ⏱️ 1h 24m'), 'Line 1 EXECUTING must show turn duration and session duration');
+
+// 11c: Narrow terminal omits idle suffix to prevent overflow
+const narrowRender = stripAnsi(render(
+  { session_id: 'render-sess', agent_state: 'idle', terminal_width: 80 },
+  { now: baseTime + 5040000, sessionState: sessionMemory, persist: false }
+));
+assert(narrowRender.includes('⏱️ 1h 24m'), 'Narrow mode must retain session duration');
+assert(!narrowRender.includes('💤 hace'), 'Narrow mode must omit idle detail to avoid line wrap');
+console.log('✔ Line 1 session and activity rendering passed');
+
+// 12. Test 3-line grid alignment and In/Out centered divider
+const gridOutput = stripAnsi(render(samplePayload));
+const gLines = gridOutput.split('\n');
+
+// All 3 lines share the exact same first column divider
+assert.strictEqual(gLines[0].indexOf('│'), gLines[1].indexOf('│'), 'Line 1 and Line 2 first pipe must align');
+assert.strictEqual(gLines[1].indexOf('│'), gLines[2].indexOf('│'), 'Line 2 and Line 3 first pipe must align');
+
+// All 3 lines share the exact same second column divider
+assert.strictEqual(gLines[0].lastIndexOf('│'), gLines[2].lastIndexOf('│'), 'Line 1 and Line 3 second pipe must align');
+assert.strictEqual(gLines[1].lastIndexOf('│'), gLines[2].lastIndexOf('│'), 'Line 2 and Line 3 outer pipe must align');
+
+// Line 2 In/Out pipe is centered at the midpoint between the two outer pipes
+const firstPipe = gLines[1].indexOf('│');
+const midPipe = gLines[1].indexOf('│', firstPipe + 1);
+const lastPipe = gLines[1].lastIndexOf('│');
+assert(midPipe > firstPipe && midPipe < lastPipe, 'In/Out pipe must be between outer pipes');
+const leftDist = midPipe - firstPipe;
+const rightDist = lastPipe - midPipe;
+assert(Math.abs(leftDist - rightDist) <= 1, 'In/Out pipe must be centered at the midpoint of Column 2');
+console.log('✔ 3-line grid alignment and In/Out centered divider passed');
 
 console.log('\nAll tests passed successfully! 🚀');

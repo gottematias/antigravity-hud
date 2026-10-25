@@ -2,7 +2,7 @@
 /**
  * Antigravity CLI Custom HUD (Status Line)
  * Architecture: Clean 3-line Dashboard with Box Connectors (3.1)
- * Line 1: Account ── Model + Reasoning ── Mode ── Agent State
+ * Line 1: Account ── Model + Reasoning ── Mode ── Agent State ── Session & Activity
  * Line 2: Subagents ── Tokens In / Out ── Context Cache
  * Line 3: Context Window ── 5h Rolling Quota ── Weekly Budget
  * Cross-platform: Windows, Linux, macOS.
@@ -11,6 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 // ANSI Color & Formatting Constants
 const ESC = '\x1b[';
@@ -24,6 +25,29 @@ const BLUE = `${ESC}34m`;
 const MAGENTA = `${ESC}35m`;
 const CYAN = `${ESC}36m`;
 const GRAY = `${ESC}90m`;
+
+/**
+ * Strips ANSI escape codes to measure true visible terminal width.
+ */
+function stripAnsi(str) {
+  return str ? str.replace(/\x1b\[[0-9;]*m/g, '') : '';
+}
+
+/**
+ * Pads a string taking into account visible character length (ignoring ANSI codes).
+ */
+function padVisible(str, targetLen, align = 'left') {
+  const visible = stripAnsi(str);
+  const diff = Math.max(0, targetLen - visible.length);
+  if (diff === 0) return str;
+  if (align === 'right') return ' '.repeat(diff) + str;
+  if (align === 'center') {
+    const left = Math.floor(diff / 2);
+    const right = diff - left;
+    return ' '.repeat(left) + str + ' '.repeat(right);
+  }
+  return str + ' '.repeat(diff);
+}
 
 /**
  * Builds an ANSI-colored progress bar.
@@ -86,6 +110,135 @@ function formatResetDuration(seconds) {
 }
 
 /**
+ * Formats elapsed duration into compact notation (e.g. 18s, 4m, 1h 24m, 2d 5h).
+ */
+function formatElapsedDuration(seconds) {
+  const s = Math.max(0, Number(seconds) || 0);
+  if (s < 60) return `${s}s`;
+  const totalMinutes = Math.floor(s / 60);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const remainingMinutes = totalMinutes % (24 * 60);
+  const hours = Math.floor(remainingMinutes / 60);
+  const minutes = remainingMinutes % 60;
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+const ACTIVE_STATES = new Set([
+  'thinking',
+  'streaming',
+  'executing',
+  'running',
+  'tool',
+  'compacting',
+  'authenticating'
+]);
+
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
+function getSessionStatePath(customPath) {
+  if (customPath !== undefined) return customPath;
+  if (process.env.AGY_HUD_SESSION_FILE) return process.env.AGY_HUD_SESSION_FILE;
+  return path.join(os.tmpdir(), 'antigravity-hud-session.json');
+}
+
+/**
+ * Resolves session duration and activity timers using lightweight persistent state.
+ */
+function resolveSessionTiming(data, options = {}) {
+  const now = typeof options.now === 'number' ? options.now : Date.now();
+  const stateFilePath = getSessionStatePath(options.stateFile);
+  const normalizedState = (data.agent_state || 'idle').toLowerCase().trim();
+  const isActive = ACTIVE_STATES.has(normalizedState);
+  const currentTokens = Number(data.context_window?.total_input_tokens || data.tokens?.input || 0);
+
+  let allStates = { sessions: {} };
+  if (options.sessionState && typeof options.sessionState === 'object') {
+    allStates = options.sessionState;
+    if (!allStates.sessions) allStates.sessions = {};
+  } else if (stateFilePath && fs.existsSync(stateFilePath)) {
+    try {
+      const raw = fs.readFileSync(stateFilePath, 'utf8');
+      allStates = JSON.parse(raw) || { sessions: {} };
+      if (!allStates.sessions || typeof allStates.sessions !== 'object') {
+        allStates.sessions = {};
+      }
+    } catch (_) {
+      allStates = { sessions: {} };
+    }
+  }
+
+  const sessionKey = String(data.session_id || data.conversation_id || data.workspace || 'default');
+  let entry = allStates.sessions[sessionKey];
+
+  const isExpired = entry && (now - entry.lastTick > SESSION_TIMEOUT_MS);
+  const isTokenReset = entry && entry.lastTokens > 20000 && currentTokens < 5000;
+
+  if (!entry || isExpired || isTokenReset) {
+    entry = {
+      sessionStartTime: now,
+      lastActiveTime: now,
+      lastState: normalizedState,
+      turnStartTime: isActive ? now : null,
+      totalActiveMs: 0,
+      lastTick: now,
+      lastTokens: currentTokens
+    };
+  } else {
+    const wasActive = ACTIVE_STATES.has(entry.lastState);
+    const delta = Math.max(0, now - (entry.lastTick || now));
+    if (wasActive) {
+      entry.totalActiveMs = (entry.totalActiveMs || 0) + delta;
+    }
+
+    if (isActive) {
+      if (!wasActive || !entry.turnStartTime) {
+        entry.turnStartTime = now;
+      }
+      entry.lastActiveTime = now;
+    } else {
+      if (wasActive) {
+        entry.lastActiveTime = now;
+      }
+      entry.turnStartTime = null;
+    }
+
+    entry.lastState = normalizedState;
+    entry.lastTick = now;
+    entry.lastTokens = currentTokens;
+  }
+
+  allStates.sessions[sessionKey] = entry;
+
+  for (const k of Object.keys(allStates.sessions)) {
+    if (now - allStates.sessions[k].lastTick > 24 * 60 * 60 * 1000) {
+      delete allStates.sessions[k];
+    }
+  }
+
+  if (options.persist !== false && stateFilePath && !options.sessionState) {
+    try {
+      fs.writeFileSync(stateFilePath, JSON.stringify(allStates), 'utf8');
+    } catch (_) {}
+  }
+
+  const sessionElapsedSec = Math.max(0, Math.floor((now - entry.sessionStartTime) / 1000));
+  const turnElapsedSec = isActive && entry.turnStartTime ? Math.max(0, Math.floor((now - entry.turnStartTime) / 1000)) : 0;
+  const idleElapsedSec = !isActive && entry.lastActiveTime ? Math.max(0, Math.floor((now - entry.lastActiveTime) / 1000)) : 0;
+  const activeWorkElapsedSec = Math.max(0, Math.floor(((entry.totalActiveMs || 0) + (isActive && entry.turnStartTime ? (now - entry.turnStartTime) : 0)) / 1000));
+
+  return {
+    isActive,
+    sessionElapsedSec,
+    turnElapsedSec,
+    idleElapsedSec,
+    activeWorkElapsedSec
+  };
+}
+
+/**
  * Resolves active account email from payload or local config.
  */
 function resolveAccount(data) {
@@ -135,22 +288,30 @@ function resolveModelAndReasoning(data) {
 }
 
 /**
- * Main Statusline Renderer (3-Line Modular Architecture)
+ * Main Statusline Renderer (3-Line Grid Architecture)
  */
-function render(data) {
+function render(data, options = {}) {
   const termWidth = Number(data.terminal_width) || 120;
   const isNarrow = termWidth < 95;
   const barLen = isNarrow ? 6 : 8;
 
-  // --- LINE 1: IDENTITY, CEREBRO Y ESTADO ---
+  // Grid column widths
+  const W1 = isNarrow ? 34 : 37;
+  const W2 = isNarrow ? 32 : 38;
+  const W3 = isNarrow ? 28 : 34;
+
+  // --- RESOLVE SESSION TIMING ---
+  const timing = resolveSessionTiming(data, options);
+
+  // --- LINE 1: IDENTITY, ENGINE & STATUS/TIME ---
   const account = resolveAccount(data);
-  const segAccount = account ? `${CYAN}👤 ${account}${RESET}` : '';
+  const segAccount = account ? `${CYAN}👤 ${account}${RESET}` : `${GRAY}👤 (no account)${RESET}`;
 
   const modelFormatted = resolveModelAndReasoning(data);
   const segModel = `${CYAN}${BOLD}[${modelFormatted}]${RESET}`;
-
   const mode = (data.cycle_mode || 'auto').toUpperCase();
   const segMode = `${YELLOW}[${mode}]${RESET}`;
+  const segEngine = `${segModel} ${segMode}`;
 
   const stateMap = {
     idle: `${GREEN}⚡ IDLE${RESET}`,
@@ -160,42 +321,64 @@ function render(data) {
     confirm: `${MAGENTA}✋ CONFIRM${RESET}`,
     executing: `${BLUE}⚙ EXECUTING${RESET}`,
     running: `${BLUE}⚙ RUNNING${RESET}`,
+    working: `${BLUE}● WORKING${RESET}`,
     tool: `${BLUE}🔧 TOOL${RESET}`,
     compacting: `${CYAN}📦 COMPACTING${RESET}`,
     authenticating: `${YELLOW}🔑 AUTH${RESET}`,
     error: `${RED}❌ ERROR${RESET}`
   };
   const normalizedState = (data.agent_state || 'idle').toLowerCase().trim();
-  const agentState = stateMap[normalizedState] || `${GRAY}● ${(data.agent_state || 'IDLE').toUpperCase()}${RESET}`;
+  const rawAgentState = stateMap[normalizedState] || `${GRAY}● ${(data.agent_state || 'IDLE').toUpperCase()}${RESET}`;
 
-  const l1Parts = [segAccount, segModel, segMode, agentState].filter(Boolean);
-  const line1 = `${GRAY}┌─ ${RESET}${l1Parts.join(`${GRAY} ── ${RESET}`)}`;
+  const turnLabel = timing.isActive && timing.turnElapsedSec > 0
+    ? ` ${GRAY}(${formatElapsedDuration(timing.turnElapsedSec)})${RESET}`
+    : '';
+  const agentState = `${rawAgentState}${turnLabel}`;
 
-  // --- LINE 2: SUBAGENTS, TOKENS IN/OUT & CACHE ---
+  const sessionStr = `⏱️ ${formatElapsedDuration(timing.sessionElapsedSec)}`;
+  let segTiming = '';
+  if (timing.isActive) {
+    segTiming = `${GRAY}${sessionStr}${RESET}`;
+  } else {
+    if (timing.idleElapsedSec >= 60 && !isNarrow) {
+      segTiming = `${GRAY}${sessionStr} (💤 hace ${formatElapsedDuration(timing.idleElapsedSec)})${RESET}`;
+    } else {
+      segTiming = `${GRAY}${sessionStr}${RESET}`;
+    }
+  }
+  const segStatusAndTime = `${agentState}   ${segTiming}`.trim();
+
+  const l1_c1 = padVisible(segAccount, W1);
+  const l1_c2 = padVisible(segEngine, W2);
+  const l1_c3 = padVisible(segStatusAndTime, W3);
+  const line1 = `${GRAY}┌─ ${RESET}${l1_c1} ${GRAY}│${RESET} ${l1_c2} ${GRAY}│${RESET} ${l1_c3}`;
+
+  // --- LINE 2: SUBAGENTS, TOKENS (CENTERED DIVIDER) & CACHE ---
   let subagentsCount = 0;
   if (data.subagents && typeof data.subagents === 'object') {
     subagentsCount = Object.keys(data.subagents).length;
   }
   const rawSubLabel = subagentsCount === 1 ? '1 subagent' : `${subagentsCount} subagents`;
-  const subagentsLabel = rawSubLabel.padEnd(11);
   const segSubagents = subagentsCount > 0
-    ? `${BLUE}🤖 ${subagentsLabel}${RESET}`
-    : `${GRAY}🤖 ${subagentsLabel}${RESET}`;
+    ? `${BLUE}🤖 ${rawSubLabel}${RESET}`
+    : `${GRAY}🤖 ${rawSubLabel}${RESET}`;
 
-  // Antigravity CLI sends token counters under context_window (total_*, current_usage);
-  // the flat `tokens` shape is kept as a fallback.
   const ctx = data.context_window || {};
   const tokens = data.tokens || data.token_usage || {};
   const inTokens = firstNumber(ctx.total_input_tokens, tokens.input, tokens.prompt, tokens.prompt_tokens, ctx.current);
   const outTokens = firstNumber(ctx.total_output_tokens, tokens.output, tokens.completion, tokens.candidates, tokens.completion_tokens);
   const segInVal = formatTokens(inTokens).padStart(6);
   const segOutVal = formatTokens(outTokens).padStart(6);
-  const segTokens = `${CYAN}In:${RESET} ${segInVal} ${GRAY}│${RESET} ${MAGENTA}Out:${RESET} ${segOutVal}`;
+
+  // In / Out with separator centered in the middle of Column 2
+  const inHalf = Math.floor((W2 - 1) / 2);
+  const outHalf = W2 - 1 - inHalf;
+  const inCell = padVisible(`${CYAN}In:${RESET}  ${segInVal}`, inHalf, 'center');
+  const outCell = padVisible(`${MAGENTA}Out:${RESET} ${segOutVal}`, outHalf, 'center');
+  const segInOutMid = `${inCell}${GRAY}│${RESET}${outCell}`;
 
   const usage = ctx.current_usage || {};
   const cacheTokens = firstNumber(usage.cache_read_input_tokens, tokens.cached, tokens.cache_read, data.cache?.tokens);
-  // Hit rate must compare against the same turn's full prompt (fresh + cache creation + cache read);
-  // total_input_tokens is a different, larger base. Without current_usage, fall back to inTokens.
   const turnPrompt = firstNumber(usage.input_tokens) + firstNumber(usage.cache_creation_input_tokens) + cacheTokens;
   const cacheBase = usage.cache_read_input_tokens != null && turnPrompt > 0 ? turnPrompt : inTokens;
   const cachePct = cacheBase > 0 && cacheTokens > 0 ? Math.round((cacheTokens / cacheBase) * 100) : 0;
@@ -203,10 +386,12 @@ function render(data) {
   const segCachePct = `${String(cachePct).padStart(3)}%`;
   const segCache = `${YELLOW}⚡ Cache:${RESET} ${segCacheVal} (${segCachePct})`;
 
-  const l2Parts = [segSubagents, segTokens, segCache];
-  const line2 = `${GRAY}├─ ${RESET}${l2Parts.join(`${GRAY} ── ${RESET}`)}`;
+  const l2_c1 = padVisible(segSubagents, W1);
+  const l2_c2 = segInOutMid;
+  const l2_c3 = padVisible(segCache, W3);
+  const line2 = `${GRAY}├─ ${RESET}${l2_c1} ${GRAY}│${RESET} ${l2_c2} ${GRAY}│${RESET} ${l2_c3}`;
 
-  // --- LINE 3: RESOURCE TELEMETRY (Context + 5h Quota + Weekly Quota) ---
+  // --- LINE 3: CONTEXT WINDOW, 5H QUOTA & WEEKLY QUOTA ---
   const currentTokens = firstNumber(ctx.total_input_tokens, ctx.current);
   const limitTokens = firstNumber(ctx.context_window_size, ctx.limit) || 1048576;
   const reportedPct = [ctx.used_percentage, ctx.percentage].find((p) => typeof p === 'number');
@@ -243,8 +428,10 @@ function render(data) {
     : '';
   const segWeek = `${CYAN}Wk:${RESET} ${usedWStr} [${makeBar(usedW, barLen)}]${resetLabelW}`;
 
-  const l3Parts = [segContext, seg5h, segWeek];
-  const line3 = `${GRAY}└─ ${RESET}${l3Parts.join(`${GRAY} │ ${RESET}`)}`;
+  const l3_c1 = padVisible(segContext, W1);
+  const l3_c2 = padVisible(seg5h, W2);
+  const l3_c3 = padVisible(segWeek, W3);
+  const line3 = `${GRAY}└─ ${RESET}${l3_c1} ${GRAY}│${RESET} ${l3_c2} ${GRAY}│${RESET} ${l3_c3}`;
 
   return `${line1}\n${line2}\n${line3}`;
 }
@@ -256,8 +443,12 @@ if (typeof module !== 'undefined' && module.exports) {
     makeBar,
     formatTokens,
     formatResetDuration,
+    formatElapsedDuration,
     resolveAccount,
-    resolveModelAndReasoning
+    resolveModelAndReasoning,
+    resolveSessionTiming,
+    stripAnsi,
+    padVisible
   };
 }
 
