@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Weekly quota warning thresholds:** Adjusted weekly quota alerts (`Wk:`) to turn yellow at 85% and red at 95% (preserving 75%/90% for context window and 5-hour rolling quota).
+
 ### Added
 - **Vertical 3-column grid alignment:** Restructured all 3 lines into an aligned table matrix with shared column boundaries and vertically aligned `│` dividers across identity, engine/tokens, and status/quotas.
 - **Centered In/Out divider:** Positioned the internal separator of Column 2 (tokens In and Out) at the exact mathematical midpoint.

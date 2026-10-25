@@ -53,16 +53,16 @@ function padVisible(str, targetLen, align = 'left') {
  * Builds an ANSI-colored progress bar.
  * Dynamically shifts from green -> yellow (>=75%) -> red (>=90%) based on usage threshold.
  */
-function makeBar(percent, width = 8) {
+function makeBar(percent, width = 8, yellowThreshold = 75, redThreshold = 90) {
   const p = Math.max(0, Math.min(100, Number(percent) || 0));
   let filled = Math.round((p / 100) * width);
   if (p > 0 && filled === 0) filled = 1; // Indicate non-zero activity with at least 1 block
   const empty = Math.max(0, width - filled);
 
   let barColor = GREEN;
-  if (p >= 90) {
+  if (p >= redThreshold) {
     barColor = RED;
-  } else if (p >= 75) {
+  } else if (p >= yellowThreshold) {
     barColor = YELLOW;
   }
 
@@ -426,7 +426,7 @@ function render(data, options = {}) {
   const resetLabelW = resetW
     ? ` ${GRAY}↻ ${resetW.padStart(7)}${RESET}`
     : '';
-  const segWeek = `${CYAN}Wk:${RESET} ${usedWStr} [${makeBar(usedW, barLen)}]${resetLabelW}`;
+  const segWeek = `${CYAN}Wk:${RESET} ${usedWStr} [${makeBar(usedW, barLen, 85, 95)}]${resetLabelW}`;
 
   const l3_c1 = padVisible(segContext, W1);
   const l3_c2 = padVisible(seg5h, W2);
