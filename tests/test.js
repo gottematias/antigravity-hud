@@ -324,7 +324,7 @@ const idleRender = stripAnsi(render(
   { session_id: 'render-sess', agent_state: 'idle', terminal_width: 120 },
   { now: baseTime + 5040000, sessionState: sessionMemory, persist: false }
 ));
-assert(idleRender.includes('⚡ IDLE ── ⏱️ 1h 24m · 💤 hace 3m'), 'Line 1 IDLE must show session duration and idle elapsed');
+assert(idleRender.includes('⚡ IDLE   ⏱️ 1h 24m (💤 hace 3m)'), 'Line 1 IDLE must show session duration and idle elapsed');
 
 // 11b: EXECUTING with turn in progress renders turn duration
 sessionMemory.sessions['render-sess'].lastState = 'executing';
@@ -333,7 +333,7 @@ const execRender = stripAnsi(render(
   { session_id: 'render-sess', agent_state: 'executing', terminal_width: 120 },
   { now: baseTime + 5040000, sessionState: sessionMemory, persist: false }
 ));
-assert(execRender.includes('⚙ EXECUTING (18s) ── ⏱️ 1h 24m'), 'Line 1 EXECUTING must show turn duration and session duration');
+assert(execRender.includes('⚙ EXECUTING (18s)   ⏱️ 1h 24m'), 'Line 1 EXECUTING must show turn duration and session duration');
 
 // 11c: Narrow terminal omits idle suffix to prevent overflow
 const narrowRender = stripAnsi(render(

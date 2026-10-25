@@ -338,15 +338,15 @@ function render(data, options = {}) {
   const sessionStr = `⏱️ ${formatElapsedDuration(timing.sessionElapsedSec)}`;
   let segTiming = '';
   if (timing.isActive) {
-    segTiming = `${GRAY}── ${sessionStr}${RESET}`;
+    segTiming = `${GRAY}${sessionStr}${RESET}`;
   } else {
     if (timing.idleElapsedSec >= 60 && !isNarrow) {
-      segTiming = `${GRAY}── ${sessionStr} · 💤 hace ${formatElapsedDuration(timing.idleElapsedSec)}${RESET}`;
+      segTiming = `${GRAY}${sessionStr} (💤 hace ${formatElapsedDuration(timing.idleElapsedSec)})${RESET}`;
     } else {
-      segTiming = `${GRAY}── ${sessionStr}${RESET}`;
+      segTiming = `${GRAY}${sessionStr}${RESET}`;
     }
   }
-  const segStatusAndTime = `${agentState} ${segTiming}`.trim();
+  const segStatusAndTime = `${agentState}   ${segTiming}`.trim();
 
   const l1_c1 = padVisible(segAccount, W1);
   const l1_c2 = padVisible(segEngine, W2);

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Vertical 3-column grid alignment:** Restructured all 3 lines into an aligned table matrix with shared column boundaries and vertically aligned `│` dividers across identity, engine/tokens, and status/quotas.
 - **Centered In/Out divider:** Positioned the internal separator of Column 2 (tokens In and Out) at the exact mathematical midpoint.
+- **Clean status and timing ergonomics:** Eliminated noisy punctuation in Column 3, formatting lifecycle state and elapsed session time with clean spacing and subtle parentheses (`⚡ IDLE   ⏱️ 1h 24m (💤 hace 3m)`).
 - **Session and activity telemetry in Line 1:** Real-time tracking of current session duration (`⏱️`), active turn execution duration (`⚙ EXECUTING (18s)`), and idle elapsed time (`💤 hace 3m`) with automatic condensation for narrow terminal viewports.
 - **Lightweight multi-session tracking:** Sub-millisecond state persistence via `os.tmpdir()` with automatic session boundary detection (session ID change, context window reset, or 30-minute inactivity timeout).
 - **Fixed-width column alignment:** Padded value slots across Line 2 (subagents, tokens in/out, cache) and Line 3 (context window, 5h rolling quota, weekly quota, countdown timers) to eliminate horizontal jitter and preserve static column positions across updates.

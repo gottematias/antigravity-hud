@@ -8,7 +8,7 @@
 A lightweight, zero-dependency, structured 3-line status-line HUD for [Google Antigravity CLI](https://antigravity.google) tailored specifically for **subscription accounts**.
 
 ```text
-┌─ 👤 user@example.com                   │ [Gemini 3.8 Flash · 🧠 Medium] [AUTO]  │ ⚡ IDLE ── ⏱️ 1h 24m · 💤 hace 3m
+┌─ 👤 user@example.com                   │ [Gemini 3.8 Flash · 🧠 Medium] [AUTO]  │ ⚡ IDLE   ⏱️ 1h 24m (💤 hace 3m)
 ├─ 🤖 1 subagent                         │    In:   38.2k    │    Out:   7.1k     │ ⚡ Cache:  14.5k ( 38%)
 └─ Ctx:  45.2k/ 1.0M (  4.3%) [█░░░░░░░] │ 5h:  18% [█░░░░░░░] ↻  3h 10m          │ Wk:  34% [███░░░░░] ↻  4d 12h
 ```
@@ -90,7 +90,7 @@ Add to `~/.gemini/antigravity-cli/settings.json`:
 
 ### Line 1: Identity, Engine & Status/Timing
 ```text
-┌─ 👤 user@example.com                   │ [Gemini 3.8 Flash · 🧠 Medium] [AUTO]  │ ⚡ IDLE ── ⏱️ 1h 24m · 💤 hace 3m
+┌─ 👤 user@example.com                   │ [Gemini 3.8 Flash · 🧠 Medium] [AUTO]  │ ⚡ IDLE   ⏱️ 1h 24m (💤 hace 3m)
 ```
 - **Column 1 (Identity):** Active authenticated user email (`👤 email`).
 - **Column 2 (Engine & Mode):** LLM engine, active thinking/reasoning effort badge (`🧠 High / Medium / Low`), and autonomy mode (`[AUTO]`, `[PLAN]`, `[ACCEPT-EDITS]`).
