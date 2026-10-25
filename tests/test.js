@@ -53,6 +53,18 @@ assert.strictEqual(bar50, '████░░░░');
 assert.strictEqual(bar100, '████████');
 console.log('✔ makeBar color thresholds (<75% green, >=75% yellow, >=90% red) and bounds passed');
 
+// 3b. Test custom thresholds (Weekly quota: <85% green, >=85% yellow, >=95% red)
+const rawBarWeek84 = makeBar(84, 8, 85, 95);
+const rawBarWeek85 = makeBar(85, 8, 85, 95);
+const rawBarWeek94 = makeBar(94, 8, 85, 95);
+const rawBarWeek95 = makeBar(95, 8, 85, 95);
+
+assert(rawBarWeek84.startsWith('\x1b[32m'), 'Weekly 84% must be GREEN');
+assert(rawBarWeek85.startsWith('\x1b[33m'), 'Weekly 85% must be YELLOW');
+assert(rawBarWeek94.startsWith('\x1b[33m'), 'Weekly 94% must be YELLOW');
+assert(rawBarWeek95.startsWith('\x1b[31m'), 'Weekly 95% must be RED');
+console.log('✔ makeBar custom thresholds (<85% green, >=85% yellow, >=95% red) passed');
+
 // 4. Test model and reasoning resolution
 assert.strictEqual(
   resolveModelAndReasoning({ model: { display_name: 'Gemini 3.8 Flash (Medium)' } }),
@@ -365,5 +377,23 @@ const leftDist = midPipe - firstPipe;
 const rightDist = lastPipe - midPipe;
 assert(Math.abs(leftDist - rightDist) <= 1, 'In/Out pipe must be centered at the midpoint of Column 2');
 console.log('✔ 3-line grid alignment and In/Out centered divider passed');
+
+// 13. Test weekly quota custom threshold integration in render()
+const renderWeek80 = render({ quota: { 'gemini-weekly': { remaining_fraction: 0.20, reset_in_seconds: 1000 } } });
+const renderWeek85 = render({ quota: { 'gemini-weekly': { remaining_fraction: 0.15, reset_in_seconds: 1000 } } });
+const renderWeek95 = render({ quota: { 'gemini-weekly': { remaining_fraction: 0.05, reset_in_seconds: 1000 } } });
+
+const weekLine80 = renderWeek80.split('\n')[2];
+const weekLine85 = renderWeek85.split('\n')[2];
+const weekLine95 = renderWeek95.split('\n')[2];
+
+const barPart80 = weekLine80.substring(weekLine80.indexOf('Wk:'));
+const barPart85 = weekLine85.substring(weekLine85.indexOf('Wk:'));
+const barPart95 = weekLine95.substring(weekLine95.indexOf('Wk:'));
+
+assert(barPart80.includes('\x1b[32m'), 'Weekly quota 80% used must be GREEN');
+assert(barPart85.includes('\x1b[33m'), 'Weekly quota 85% used must be YELLOW');
+assert(barPart95.includes('\x1b[31m'), 'Weekly quota 95% used must be RED');
+console.log('✔ weekly quota custom threshold integration in render() passed');
 
 console.log('\nAll tests passed successfully! 🚀');

@@ -117,9 +117,14 @@ Add to `~/.gemini/antigravity-cli/settings.json`:
 
 ### Color Thresholds
 Progress bars and saturations shift color dynamically based on health thresholds:
-- 🟢 **Green:** < 75% usage (healthy headroom)
-- 🟡 **Yellow:** 75% – 89% usage (attention / threshold warning)
-- 🔴 **Red:** ≥ 90% usage (critical / saturation alert)
+- **Context Window & 5-Hour Rolling Quota:**
+  - 🟢 **Green:** < 75% usage (healthy headroom)
+  - 🟡 **Yellow:** 75% – 89% usage (attention / threshold warning)
+  - 🔴 **Red:** ≥ 90% usage (critical / saturation alert)
+- **Weekly Quota (`Wk:`):**
+  - 🟢 **Green:** < 85% usage (healthy headroom)
+  - 🟡 **Yellow:** 85% – 94% usage (attention / threshold warning)
+  - 🔴 **Red:** ≥ 95% usage (critical / saturation alert)
 
 ---
 
