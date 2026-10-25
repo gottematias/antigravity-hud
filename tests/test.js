@@ -324,7 +324,7 @@ const idleRender = stripAnsi(render(
   { session_id: 'render-sess', agent_state: 'idle', terminal_width: 120 },
   { now: baseTime + 5040000, sessionState: sessionMemory, persist: false }
 ));
-assert(idleRender.includes('⚡ IDLE ── ⏱️ 1h 24m │ 💤 hace 3m'), 'Line 1 IDLE must show session duration and idle elapsed');
+assert(idleRender.includes('⚡ IDLE ── ⏱️ 1h 24m · 💤 hace 3m'), 'Line 1 IDLE must show session duration and idle elapsed');
 
 // 11b: EXECUTING with turn in progress renders turn duration
 sessionMemory.sessions['render-sess'].lastState = 'executing';
@@ -343,5 +343,27 @@ const narrowRender = stripAnsi(render(
 assert(narrowRender.includes('⏱️ 1h 24m'), 'Narrow mode must retain session duration');
 assert(!narrowRender.includes('💤 hace'), 'Narrow mode must omit idle detail to avoid line wrap');
 console.log('✔ Line 1 session and activity rendering passed');
+
+// 12. Test 3-line grid alignment and In/Out centered divider
+const gridOutput = stripAnsi(render(samplePayload));
+const gLines = gridOutput.split('\n');
+
+// All 3 lines share the exact same first column divider
+assert.strictEqual(gLines[0].indexOf('│'), gLines[1].indexOf('│'), 'Line 1 and Line 2 first pipe must align');
+assert.strictEqual(gLines[1].indexOf('│'), gLines[2].indexOf('│'), 'Line 2 and Line 3 first pipe must align');
+
+// All 3 lines share the exact same second column divider
+assert.strictEqual(gLines[0].lastIndexOf('│'), gLines[2].lastIndexOf('│'), 'Line 1 and Line 3 second pipe must align');
+assert.strictEqual(gLines[1].lastIndexOf('│'), gLines[2].lastIndexOf('│'), 'Line 2 and Line 3 outer pipe must align');
+
+// Line 2 In/Out pipe is centered at the midpoint between the two outer pipes
+const firstPipe = gLines[1].indexOf('│');
+const midPipe = gLines[1].indexOf('│', firstPipe + 1);
+const lastPipe = gLines[1].lastIndexOf('│');
+assert(midPipe > firstPipe && midPipe < lastPipe, 'In/Out pipe must be between outer pipes');
+const leftDist = midPipe - firstPipe;
+const rightDist = lastPipe - midPipe;
+assert(Math.abs(leftDist - rightDist) <= 1, 'In/Out pipe must be centered at the midpoint of Column 2');
+console.log('✔ 3-line grid alignment and In/Out centered divider passed');
 
 console.log('\nAll tests passed successfully! 🚀');
