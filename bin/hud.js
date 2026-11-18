@@ -127,6 +127,7 @@ function formatElapsedDuration(seconds) {
 }
 
 const ACTIVE_STATES = new Set([
+  'working',
   'thinking',
   'streaming',
   'executing',
@@ -137,6 +138,26 @@ const ACTIVE_STATES = new Set([
 ]);
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
+function resolveSessionKey(data) {
+  for (const candidate of [data.session_id, data.conversation_id, data.workspace]) {
+    if (candidate) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+        return String(candidate);
+      }
+      if (typeof candidate === 'object') {
+        const str = candidate.id || candidate.path || candidate.name;
+        if (typeof str === 'string' && str.trim()) {
+          return str.trim();
+        }
+      }
+    }
+  }
+  return 'default';
+}
 
 function getSessionStatePath(customPath) {
   if (customPath !== undefined) return customPath;
@@ -170,11 +191,15 @@ function resolveSessionTiming(data, options = {}) {
     }
   }
 
-  const sessionKey = String(data.session_id || data.conversation_id || data.workspace || 'default');
+  const sessionKey = resolveSessionKey(data);
   let entry = allStates.sessions[sessionKey];
 
-  const isExpired = entry && (now - entry.lastTick > SESSION_TIMEOUT_MS);
-  const isTokenReset = entry && entry.lastTokens > 20000 && currentTokens < 5000;
+  const hasExplicitId = Boolean(
+    (typeof data.session_id === 'string' && data.session_id.trim()) ||
+    (typeof data.conversation_id === 'string' && data.conversation_id.trim())
+  );
+  const isExpired = entry && !hasExplicitId && (now - entry.lastTick > SESSION_TIMEOUT_MS);
+  const isTokenReset = entry && !hasExplicitId && entry.lastTokens > 20000 && currentTokens > 0 && currentTokens < 5000;
 
   if (!entry || isExpired || isTokenReset) {
     entry = {
@@ -183,6 +208,7 @@ function resolveSessionTiming(data, options = {}) {
       lastState: normalizedState,
       turnStartTime: isActive ? now : null,
       totalActiveMs: 0,
+      hasActiveTurns: isActive,
       lastTick: now,
       lastTokens: currentTokens
     };
@@ -191,6 +217,7 @@ function resolveSessionTiming(data, options = {}) {
     const delta = Math.max(0, now - (entry.lastTick || now));
     if (wasActive) {
       entry.totalActiveMs = (entry.totalActiveMs || 0) + delta;
+      entry.hasActiveTurns = true;
     }
 
     if (isActive) {
@@ -198,6 +225,7 @@ function resolveSessionTiming(data, options = {}) {
         entry.turnStartTime = now;
       }
       entry.lastActiveTime = now;
+      entry.hasActiveTurns = true;
     } else {
       if (wasActive) {
         entry.lastActiveTime = now;
@@ -226,15 +254,19 @@ function resolveSessionTiming(data, options = {}) {
 
   const sessionElapsedSec = Math.max(0, Math.floor((now - entry.sessionStartTime) / 1000));
   const turnElapsedSec = isActive && entry.turnStartTime ? Math.max(0, Math.floor((now - entry.turnStartTime) / 1000)) : 0;
-  const idleElapsedSec = !isActive && entry.lastActiveTime ? Math.max(0, Math.floor((now - entry.lastActiveTime) / 1000)) : 0;
-  const activeWorkElapsedSec = Math.max(0, Math.floor(((entry.totalActiveMs || 0) + (isActive && entry.turnStartTime ? (now - entry.turnStartTime) : 0)) / 1000));
+  const hasActiveTurns = Boolean(entry.hasActiveTurns || (entry.totalActiveMs && entry.totalActiveMs > 0));
+  const idleElapsedSec = !isActive && hasActiveTurns && entry.lastActiveTime
+    ? Math.max(0, Math.floor((now - entry.lastActiveTime) / 1000))
+    : 0;
+  const activeWorkElapsedSec = Math.max(0, Math.floor((entry.totalActiveMs || 0) / 1000));
 
   return {
     isActive,
     sessionElapsedSec,
     turnElapsedSec,
     idleElapsedSec,
-    activeWorkElapsedSec
+    activeWorkElapsedSec,
+    hasActiveTurns
   };
 }
 
@@ -340,7 +372,12 @@ function render(data, options = {}) {
   if (timing.isActive) {
     segTiming = `${GRAY}${sessionStr}${RESET}`;
   } else {
-    if (timing.idleElapsedSec >= 60 && !isNarrow) {
+    const showIdleDetail = !isNarrow
+      && timing.hasActiveTurns
+      && timing.idleElapsedSec >= 60
+      && timing.idleElapsedSec < timing.sessionElapsedSec;
+
+    if (showIdleDetail) {
       segTiming = `${GRAY}${sessionStr} (💤 hace ${formatElapsedDuration(timing.idleElapsedSec)})${RESET}`;
     } else {
       segTiming = `${GRAY}${sessionStr}${RESET}`;
@@ -447,6 +484,7 @@ if (typeof module !== 'undefined' && module.exports) {
     resolveAccount,
     resolveModelAndReasoning,
     resolveSessionTiming,
+    resolveSessionKey,
     stripAnsi,
     padVisible
   };
