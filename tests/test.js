@@ -7,7 +7,8 @@ const {
   formatElapsedDuration,
   resolveModelAndReasoning,
   resolveAccount,
-  resolveSessionTiming
+  resolveSessionTiming,
+  resolveSessionKey
 } = require('../bin/hud.js');
 
 console.log('Running test suite for Antigravity HUD...');
@@ -205,6 +206,7 @@ const testStates = [
   { state: 'waiting_confirmation', expected: '✋ CONFIRM' },
   { state: 'executing', expected: '⚙ EXECUTING' },
   { state: 'running', expected: '⚙ RUNNING' },
+  { state: 'working', expected: '● WORKING' },
   { state: 'tool', expected: '🔧 TOOL' },
   { state: 'compacting', expected: '📦 COMPACTING' },
   { state: 'authenticating', expected: '🔑 AUTH' },
@@ -395,5 +397,105 @@ assert(barPart80.includes('\x1b[32m'), 'Weekly quota 80% used must be GREEN');
 assert(barPart85.includes('\x1b[33m'), 'Weekly quota 85% used must be YELLOW');
 assert(barPart95.includes('\x1b[31m'), 'Weekly quota 95% used must be RED');
 console.log('✔ weekly quota custom threshold integration in render() passed');
+
+// 14. Test resolveSessionKey avoids [object Object] and extracts safe identifiers
+assert.strictEqual(resolveSessionKey({ session_id: 'sess-abc' }), 'sess-abc');
+assert.strictEqual(resolveSessionKey({ conversation_id: 'conv-xyz' }), 'conv-xyz');
+assert.strictEqual(resolveSessionKey({ workspace: 'C:\\projects\\app' }), 'C:\\projects\\app');
+assert.strictEqual(resolveSessionKey({ workspace: { path: 'C:\\projects\\obj-path' } }), 'C:\\projects\\obj-path');
+assert.strictEqual(resolveSessionKey({ workspace: { id: 'ws-obj-id' } }), 'ws-obj-id');
+assert.strictEqual(resolveSessionKey({ workspace: { name: 'ws-obj-name' } }), 'ws-obj-name');
+assert.strictEqual(resolveSessionKey({}), 'default');
+assert.strictEqual(resolveSessionKey({ session_id: 12345 }), '12345');
+assert.notStrictEqual(resolveSessionKey({ workspace: { path: '/safe' } }), '[object Object]');
+console.log('✔ resolveSessionKey handles objects and strings safely without [object Object] passed');
+
+// 15. Test "working" state transitions, active tracking and transition to idle
+const workState = { sessions: {} };
+const t0 = 1700000000000;
+
+// Step A: Agent enters "working" state at t0
+const workT1 = resolveSessionTiming(
+  { session_id: 'work-sess', agent_state: 'working' },
+  { now: t0, sessionState: workState, persist: false }
+);
+assert.strictEqual(workT1.isActive, true, 'working must be recognized as an active state');
+assert.strictEqual(workT1.turnElapsedSec, 0);
+
+// Step B: Agent has been "working" for 45s
+const workT2 = resolveSessionTiming(
+  { session_id: 'work-sess', agent_state: 'working' },
+  { now: t0 + 45000, sessionState: workState, persist: false }
+);
+assert.strictEqual(workT2.isActive, true);
+assert.strictEqual(workT2.turnElapsedSec, 45, 'turn duration must advance during working state');
+assert.strictEqual(workT2.activeWorkElapsedSec, 45);
+
+// Step C: Agent finishes and goes to "idle" at t0 + 50s
+const workT3 = resolveSessionTiming(
+  { session_id: 'work-sess', agent_state: 'idle' },
+  { now: t0 + 50000, sessionState: workState, persist: false }
+);
+assert.strictEqual(workT3.isActive, false);
+assert.strictEqual(workT3.idleElapsedSec, 0, 'idleElapsedSec must be 0 immediately after turn finishes');
+assert.strictEqual(workT3.hasActiveTurns, true);
+
+// Right after turn finishes, idle is < 60s, so it must NOT render "(💤 hace ...)"
+const postWorkRender = stripAnsi(render(
+  { session_id: 'work-sess', agent_state: 'idle', terminal_width: 120 },
+  { now: t0 + 50000, sessionState: workState, persist: false }
+));
+assert(postWorkRender.includes('⚡ IDLE   ⏱️ 50s'));
+assert(!postWorkRender.includes('💤 hace'), 'Must not display idle sleep tag immediately after working');
+
+// 90s after finishing work (t0 + 140s total, 90s idle), idle tag appears with legitimate inactivity
+const laterRender = stripAnsi(render(
+  { session_id: 'work-sess', agent_state: 'idle', terminal_width: 120 },
+  { now: t0 + 140000, sessionState: workState, persist: false }
+));
+assert(laterRender.includes('⚡ IDLE   ⏱️ 2m (💤 hace 1m)'), 'Must display idle tag only after elapsed idle time');
+console.log('✔ "working" state active tracking and clean transition to idle passed');
+
+// 16. Test clean idle rendering without prior activity (no redundant "⏱️ 2m (💤 hace 2m)")
+const freshIdleState = { sessions: {} };
+const freshRender1 = stripAnsi(render(
+  { session_id: 'fresh-idle', agent_state: 'idle', terminal_width: 120 },
+  { now: t0, sessionState: freshIdleState, persist: false }
+));
+assert(freshRender1.includes('⚡ IDLE   ⏱️ 0s'));
+assert(!freshRender1.includes('💤 hace'));
+
+// 2 minutes later with zero active turns: must only render session duration, never redundant "(💤 hace 2m)"
+const freshRender2 = stripAnsi(render(
+  { session_id: 'fresh-idle', agent_state: 'idle', terminal_width: 120 },
+  { now: t0 + 120000, sessionState: freshIdleState, persist: false }
+));
+assert(freshRender2.includes('⚡ IDLE   ⏱️ 2m'));
+assert(!freshRender2.includes('💤 hace'), 'Clean idle sessions must not render redundant (💤 hace 2m)');
+console.log('✔ clean idle rendering without prior activity passed');
+
+// 17. Test token compaction drop does not reset session when session_id is explicit
+const compactState = {
+  sessions: {
+    'compact-sess': {
+      sessionStartTime: t0,
+      lastActiveTime: t0 + 100000,
+      lastState: 'idle',
+      turnStartTime: null,
+      totalActiveMs: 50000,
+      hasActiveTurns: true,
+      lastTick: t0 + 100000,
+      lastTokens: 45000 // Was 45k tokens
+    }
+  }
+};
+
+// Compaction drops tokens to 3500: sessionStartTime must be preserved
+const compactTiming = resolveSessionTiming(
+  { session_id: 'compact-sess', agent_state: 'idle', context_window: { total_input_tokens: 3500 } },
+  { now: t0 + 120000, sessionState: compactState, persist: false }
+);
+assert.strictEqual(compactTiming.sessionElapsedSec, 120, 'Compaction must not reset sessionStartTime when session_id is present');
+console.log('✔ compaction token drops preserve session duration passed');
 
 console.log('\nAll tests passed successfully! 🚀');

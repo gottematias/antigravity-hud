@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Active state detection and idle duration calculation:** Added `working` to active agent states so that turns executed by Antigravity CLI advance active work timers and update `lastActiveTime` on completion. Fixed double-counting in `activeWorkElapsedSec`.
+- **Redundant idle indicator on fresh sessions:** Sessions without prior completed turns or where idle time equals session duration now render only elapsed session time (`⏱️ Xm`), suppressing redundant `(💤 hace Xm)`.
+- **Session key object collisions:** Safely extract path, ID, or name from `data.workspace` or session candidates to prevent multi-session collisions under `[object Object]`.
+- **Preserve session timer on compaction:** Prevent token drop heuristics from resetting session start time when an explicit session or conversation ID is present.
+
 ### Changed
 - **Weekly quota warning thresholds:** Adjusted weekly quota alerts (`Wk:`) to turn yellow at 85% and red at 95% (preserving 75%/90% for context window and 5-hour rolling quota).
 
